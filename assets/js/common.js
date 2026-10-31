@@ -70,6 +70,25 @@ function seninPekanIni(tanggal = todayWIB()) {
   return tambahHari(tanggal, -indeksHariSenin(tanggal));
 }
 
+/** Jumlah hari dalam bulan "YYYY-MM" */
+function jumlahHariBulan(bulan) {
+  const [y, m] = bulan.split("-").map(Number);
+  return new Date(Date.UTC(y, m, 0)).getUTCDate();
+}
+
+/** "2026-11" → "November 2026" */
+function namaBulan(bulan) {
+  const [y, m] = bulan.split("-").map(Number);
+  return new Intl.DateTimeFormat("id-ID", { month: "long", year: "numeric", timeZone: "UTC" })
+    .format(new Date(Date.UTC(y, m - 1, 1)));
+}
+
+/** Geser bulan "YYYY-MM" sebanyak n bulan (boleh negatif) */
+function geserBulan(bulan, n) {
+  const [y, m] = bulan.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1 + n, 1)).toISOString().slice(0, 7);
+}
+
 /** "2026-10-27" → "Selasa, 27 Oktober 2026" */
 function formatTanggal(tanggal, opsi = { weekday: "long", day: "numeric", month: "long", year: "numeric" }) {
   if (!tanggal) return "-";
@@ -225,8 +244,9 @@ function htmlMatriksIuran(warga, transaksi, tahun, opsi = {}) {
     return `
       <tr class="border-t border-stone-100">
         <td class="sticky left-0 bg-white px-2 py-2 text-center text-stone-500">${idx + 1}</td>
-        <td class="sticky left-10 bg-white px-3 py-2 whitespace-nowrap">
-          <span class="font-medium">${escapeHtml(w.nama)}</span>
+        <td class="sticky left-10 bg-white px-3 py-2 whitespace-nowrap"
+            ${opsi.admin ? `data-pilih-rumah="${escapeHtml(w.nomor_rumah)}" title="Klik untuk bayar iuran sekaligus"` : ""}>
+          <span class="font-medium ${opsi.admin ? "cursor-pointer hover:text-brand-700 hover:underline" : ""}">${escapeHtml(w.nama)}</span>
           <span class="ml-1 text-xs font-semibold text-brand-600">${escapeHtml(w.nomor_rumah)}</span>
         </td>
         ${sel}

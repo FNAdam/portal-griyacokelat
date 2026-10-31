@@ -5,6 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Upload Bukti Gerbang</title>
   <meta name="theme-color" content="#744734" />
+  <!-- Logo cluster sebagai ikon tab browser & ikon layar utama HP -->
+  <link rel="icon" type="image/png" href="assets/logo-192.png" />
+  <link rel="apple-touch-icon" href="assets/logo-512.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <script src="https://cdn.tailwindcss.com"></script>
@@ -18,6 +21,7 @@
   <header class="bg-white border-b border-stone-200">
     <div class="max-w-lg mx-auto px-4 h-16 flex items-center gap-3">
       <a href="index.html" class="w-10 h-10 grid place-items-center rounded-lg hover:bg-stone-100" aria-label="Kembali"><i class="fa-solid fa-arrow-left"></i></a>
+      <img src="assets/logo-192.png" alt="Logo Cluster Griya Cokelat" width="40" height="40" class="w-10 h-10 rounded-full shadow-sm" />
       <div class="leading-tight">
         <p class="text-xs text-stone-500" data-nama-cluster>Cluster</p>
         <h1 class="font-bold text-brand-800">Upload Bukti Kunci Gerbang</h1>
@@ -69,7 +73,7 @@
         <div id="placeholder-foto">
           <i class="fa-solid fa-camera text-4xl text-brand-400"></i>
           <p class="mt-2 font-semibold">Ambil / pilih foto gerbang terkunci</p>
-          <p class="text-xs text-stone-500 mt-1">Foto akan dikompres otomatis (JPEG)</p>
+          <p class="text-xs text-stone-500 mt-1">Foto otomatis diberi watermark nomor rumah, tanggal &amp; jam (WIB)</p>
         </div>
       </label>
       <input id="input-foto" type="file" accept="image/*" capture="environment" class="hidden" />
@@ -96,6 +100,10 @@
       <span class="w-16 h-16 mx-auto rounded-full grid place-items-center bg-rose-100 text-rose-600 text-3xl"><i class="fa-solid fa-calendar-xmark"></i></span>
       <h2 class="font-bold text-xl mt-3">Bukan Jadwal Anda</h2>
       <p id="pesan-tolak" class="text-sm text-stone-500 mt-1"></p>
+      <!-- Muncul bila nomor rumah terdaftar sebagai warga & ada jadwal hari ini -->
+      <button id="btn-pengganti" class="hidden mt-4 w-full py-3 rounded-xl bg-brand-700 text-white font-semibold hover:bg-brand-800">
+        <i class="fa-solid fa-people-arrows mr-2"></i><span id="label-pengganti">Saya menggantikan</span>
+      </button>
       <button id="btn-coba-lagi" class="mt-4 w-full py-3 rounded-xl border border-stone-300 font-semibold hover:bg-stone-50"><i class="fa-solid fa-rotate-left mr-2"></i>Coba Nomor Lain</button>
     </div>
   </main>

@@ -97,18 +97,6 @@ function siapkanGenerator() {
   }
 }
 
-/** Jumlah hari dalam bulan "YYYY-MM" */
-function jumlahHariBulan(bulan) {
-  const [y, m] = bulan.split("-").map(Number);
-  return new Date(Date.UTC(y, m, 0)).getUTCDate();
-}
-
-/** "2026-11" → "November 2026" */
-function namaBulan(bulan) {
-  const [y, m] = bulan.split("-").map(Number);
-  return new Intl.DateTimeFormat("id-ID", { month: "long", year: "numeric", timeZone: "UTC" })
-    .format(new Date(Date.UTC(y, m - 1, 1)));
-}
 
 /**
  * Tanggal-tanggal yang dijadwalkan pada bulan "YYYY-MM".
@@ -276,6 +264,7 @@ function periodeIuran(tahun, bulan) {
 
 async function muatKasAdmin() {
   document.getElementById("kas-tanggal").value ||= todayWIB();
+  document.getElementById("bi-tanggal").value ||= todayWIB();
 
   const [{ data, error }, { data: warga }] = await Promise.all([
     ambilSemua(() => sb
@@ -299,54 +288,39 @@ async function muatKasAdmin() {
   isiPilihanTahun("adm-kas-tahun", data);
   renderBukuKasAdmin();
 
-  document.getElementById("adm-tabel-kas").innerHTML = data.length
-    ? data.map((r) => {
-      const masukTx = r.tipe === "masuk";
-      return `
+  // Riwayat pengeluaran (terbaru di atas)
+  const pengeluaran = data.filter((r) => r.tipe === "keluar");
+  document.getElementById("adm-tabel-kas").innerHTML = pengeluaran.length
+    ? pengeluaran.map((r) => `
       <tr class="hover:bg-stone-50">
         <td class="px-3 py-3 whitespace-nowrap text-stone-500">${formatTanggal(r.tanggal, { day: "numeric", month: "short", year: "numeric" })}</td>
-        <td class="px-3 py-3 font-semibold text-brand-800">${r.nomor_rumah ? escapeHtml(r.nomor_rumah) : `<span class="text-stone-300">—</span>`}</td>
         <td class="px-3 py-3">${escapeHtml(r.keterangan)}</td>
-        <td class="px-3 py-3"><span class="px-2 py-0.5 rounded-full text-xs font-medium ${masukTx ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700"}">${masukTx ? "Masuk" : "Keluar"}</span></td>
-        <td class="px-3 py-3 text-right font-semibold whitespace-nowrap ${masukTx ? "text-emerald-700" : "text-rose-700"}">${masukTx ? "+" : "−"} ${formatRupiah(r.jumlah)}</td>
+        <td class="px-3 py-3 text-right font-semibold whitespace-nowrap text-rose-700">${formatRupiah(r.jumlah)}</td>
         <td class="px-3 py-3 text-center"><button data-hapus-kas="${r.id}" class="text-rose-500 hover:text-rose-700" title="Hapus"><i class="fa-solid fa-trash"></i></button></td>
-      </tr>`;
-    }).join("")
-    : `<tr><td colspan="6" class="px-4 py-6 text-center text-stone-400">Belum ada transaksi.</td></tr>`;
+      </tr>`).join("")
+    : `<tr><td colspan="4" class="px-4 py-6 text-center text-stone-400">Belum ada pengeluaran.</td></tr>`;
 }
 
+// Input pengeluaran (tipe selalu "keluar", tanpa nomor rumah)
 document.getElementById("form-kas").addEventListener("submit", async (e) => {
   e.preventDefault();
   const tanggal = document.getElementById("kas-tanggal").value;
-  const nomor = normalisasiNomorRumah(document.getElementById("kas-rumah").value) || null;
-  const tipe = document.getElementById("kas-tipe").value;
+  const keterangan = document.getElementById("kas-keterangan").value.trim();
   const jumlah = parseInt(document.getElementById("kas-jumlah").value, 10);
-  let keterangan = document.getElementById("kas-keterangan").value.trim();
 
   if (!tanggal) return toast("Tanggal wajib diisi.", "error");
+  if (!keterangan) return toast("Keterangan pengeluaran wajib diisi.", "error");
   if (!(jumlah > 0)) return toast("Jumlah harus lebih dari 0.", "error");
-  if (nomor && !petaWarga[nomor] &&
-      !confirm(`Rumah ${nomor} tidak ada di data warga. Tetap simpan?`)) return;
-
-  // Keterangan kosong + ada No. Rumah → otomatis "Iuran November 2026"
-  if (!keterangan) {
-    if (!nomor) return toast("Isi keterangan (atau No. Rumah untuk iuran).", "error");
-    keterangan = `Iuran ${namaBulan(tanggal.slice(0, 7))}`;
-  }
-
-  // Pemasukan dengan No. Rumah = iuran untuk bulan sesuai tanggal
-  const periode_iuran = nomor && tipe === "masuk" ? `${tanggal.slice(0, 7)}-01` : null;
 
   const pulihkan = tombolLoading(e.submitter || document.querySelector('button[form="form-kas"]'), "");
-  const { error } = await sb.from("uang_kas").insert({ tanggal, nomor_rumah: nomor, periode_iuran, keterangan, tipe, jumlah });
+  const { error } = await sb.from("uang_kas").insert({ tanggal, keterangan, tipe: "keluar", jumlah });
   pulihkan();
   if (error) return toast("Gagal menyimpan: " + error.message, "error");
 
-  toast(`Transaksi ${nomor ? "rumah " + nomor + " " : ""}tersimpan.`, "sukses");
-  // Tanggal, tipe & jumlah dibiarkan agar input iuran banyak rumah lebih cepat
-  document.getElementById("kas-rumah").value = "";
+  toast(`Pengeluaran ${formatRupiah(jumlah)} tersimpan.`, "sukses");
   document.getElementById("kas-keterangan").value = "";
-  document.getElementById("kas-rumah").focus();
+  document.getElementById("kas-jumlah").value = "";
+  document.getElementById("kas-keterangan").focus();
   muatKasAdmin();
 });
 
@@ -375,6 +349,146 @@ function renderBukuKasAdmin() {
 }
 
 document.getElementById("adm-kas-tahun").addEventListener("change", renderBukuKasAdmin);
+
+/* ---------------------------------------------------------------------
+ * Bayar iuran sekaligus: nominal dibagi per IURAN_BULANAN ke bulan yang
+ * belum lunas. Contoh: Rp 100.000 → 4 bulan kosong pertama @ Rp 25.000.
+ * Bulan yang baru terbayar sebagian dilengkapi dulu; sisa yang tidak genap
+ * dicatat sebagai pembayaran sebagian di bulan berikutnya.
+ * ------------------------------------------------------------------- */
+
+/** Total iuran yang sudah dibayar sebuah rumah per bulan → { "YYYY-MM": jumlah } */
+function iuranTerbayarPerBulan(rumah) {
+  const hasil = {};
+  for (const r of kasCache.transaksi) {
+    if (r.tipe !== "masuk" || r.nomor_rumah !== rumah) continue;
+    const bulan = String(r.periode_iuran || r.tanggal).slice(0, 7);
+    hasil[bulan] = (hasil[bulan] || 0) + Number(r.jumlah);
+  }
+  return hasil;
+}
+
+/** Bulan terakhir yang pernah dibayar sebuah rumah ("YYYY-MM"), atau null */
+function bulanTerakhirBayar(rumah) {
+  const daftar = Object.keys(iuranTerbayarPerBulan(rumah)).sort();
+  return daftar.length ? daftar[daftar.length - 1] : null;
+}
+
+/**
+ * Bulan mulai bawaan untuk sebuah rumah:
+ *  - bulan terakhir bayar + 1
+ *  - bulan terakhir itu sendiri bila baru dibayar sebagian (dilengkapi dulu)
+ *  - Januari (tahun yang dipilih di tabel iuran) bila rumah belum pernah bayar
+ */
+function bulanMulaiDefault(rumah) {
+  const terakhir = bulanTerakhirBayar(rumah);
+  if (!terakhir) return `${document.getElementById("adm-kas-tahun").value || todayWIB().slice(0, 4)}-01`;
+  return iuranTerbayarPerBulan(rumah)[terakhir] < IURAN_BULANAN ? terakhir : geserBulan(terakhir, 1);
+}
+
+/** Pembagian nominal → [{ bulan: "YYYY-MM", jumlah, sebagian }] */
+function hitungDistribusiIuran(rumah, total, mulai) {
+  const terbayar = iuranTerbayarPerBulan(rumah);
+  const hasil = [];
+  let sisa = total;
+  let bulan = mulai;
+  for (let i = 0; sisa > 0 && i < 240; i++, bulan = geserBulan(bulan, 1)) {
+    const kurang = IURAN_BULANAN - (terbayar[bulan] || 0);
+    if (kurang <= 0) continue; // sudah lunas → lewati
+    const jumlah = Math.min(kurang, sisa);
+    hasil.push({ bulan, jumlah, sebagian: (terbayar[bulan] || 0) + jumlah < IURAN_BULANAN });
+    sisa -= jumlah;
+  }
+  return hasil;
+}
+
+/** "2026-03" → "Mar 2026" */
+function bulanPendek(bulan) {
+  return `${NAMA_BULAN[Number(bulan.slice(5, 7)) - 1].slice(0, 3)} ${bulan.slice(0, 4)}`;
+}
+
+function pratinjauBayarIuran() {
+  const rumah = normalisasiNomorRumah(document.getElementById("bi-rumah").value);
+  const total = parseInt(document.getElementById("bi-jumlah").value, 10);
+  const mulai = document.getElementById("bi-mulai").value;
+  const wadah = document.getElementById("bi-pratinjau");
+
+  if (!rumah || !(total > 0) || !mulai) {
+    wadah.innerHTML = `<span class="text-stone-500">Isi No. Rumah dan jumlah untuk melihat pembagian bulan.</span>`;
+    return [];
+  }
+  const bagian = hitungDistribusiIuran(rumah, total, mulai);
+  const nama = petaWarga[rumah];
+  const terakhir = bulanTerakhirBayar(rumah);
+  wadah.innerHTML = `
+    <p class="text-xs text-stone-500 mb-1"><i class="fa-solid fa-clock-rotate-left mr-1"></i>Terakhir bayar: ${
+      terakhir ? `<b>${bulanPendek(terakhir)}</b>` : "<b>belum pernah</b> (mulai dari Januari)"}</p>
+    <p class="text-stone-600">
+      ${nama ? `<b>${escapeHtml(rumah)} · ${escapeHtml(nama)}</b>` : `<b class="text-rose-600">${escapeHtml(rumah)} (tidak ada di data warga)</b>`}
+      — ${formatRupiah(total)} dibagi ke <b>${bagian.length} bulan</b>:
+    </p>
+    <div class="mt-2 flex flex-wrap gap-2">
+      ${bagian.map((b) => `
+        <span class="px-2.5 py-1 rounded-lg text-xs font-medium ${b.sebagian ? "bg-amber-100 text-amber-800" : "bg-emerald-100 text-emerald-800"}">
+          ${bulanPendek(b.bulan)} · ${formatAngka(b.jumlah)}${b.sebagian ? " (sebagian)" : ""}
+        </span>`).join("")}
+    </div>`;
+  return bagian;
+}
+
+// Rumah berubah → isi otomatis "Mulai bulan" = bulan terakhir bayar + 1
+document.getElementById("bi-rumah").addEventListener("input", () => {
+  const rumah = normalisasiNomorRumah(document.getElementById("bi-rumah").value);
+  if (rumah) document.getElementById("bi-mulai").value = bulanMulaiDefault(rumah);
+  pratinjauBayarIuran();
+});
+["bi-jumlah", "bi-mulai"].forEach((id) => document.getElementById(id).addEventListener("input", pratinjauBayarIuran));
+
+// Klik nama warga di tabel iuran → isi form bayar iuran
+document.getElementById("adm-matriks-iuran").addEventListener("click", (e) => {
+  const el = e.target.closest("[data-pilih-rumah]");
+  if (!el) return;
+  document.getElementById("bi-rumah").value = el.dataset.pilihRumah;
+  document.getElementById("bi-rumah").dispatchEvent(new Event("input"));
+  document.getElementById("form-bayar-iuran").scrollIntoView({ behavior: "smooth", block: "center" });
+  document.getElementById("bi-jumlah").focus();
+});
+
+document.getElementById("form-bayar-iuran").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const rumah = normalisasiNomorRumah(document.getElementById("bi-rumah").value);
+  const tanggal = document.getElementById("bi-tanggal").value;
+  const bagian = pratinjauBayarIuran();
+  if (!rumah || !tanggal || !bagian.length) return toast("Lengkapi No. Rumah, tanggal, dan jumlah.", "error");
+  if (!petaWarga[rumah] && !confirm(`Rumah ${rumah} tidak ada di data warga. Tetap simpan?`)) return;
+
+  const ringkas = bagian.map((b) => `${bulanPendek(b.bulan)} ${formatRupiah(b.jumlah)}`).join(", ");
+  if (!confirm(`Simpan pembayaran Rumah ${rumah}?\n\n${ringkas}`)) return;
+
+  const baris = bagian.map((b) => {
+    const [th, bl] = b.bulan.split("-").map(Number);
+    return {
+      tanggal,
+      nomor_rumah: rumah,
+      periode_iuran: periodeIuran(th, bl),
+      keterangan: `Iuran ${NAMA_BULAN[bl - 1]} ${th}${b.sebagian ? " (sebagian)" : ""}`,
+      tipe: "masuk",
+      jumlah: b.jumlah,
+    };
+  });
+
+  const pulihkan = tombolLoading(e.submitter || e.target.querySelector("button"), "Menyimpan...");
+  const { error } = await sb.from("uang_kas").insert(baris); // satu request, semua atau tidak sama sekali
+  pulihkan();
+  if (error) return toast("Gagal menyimpan: " + error.message, "error");
+
+  toast(`Iuran Rumah ${rumah} tersimpan untuk ${bagian.length} bulan.`, "sukses");
+  document.getElementById("bi-rumah").value = "";
+  document.getElementById("bi-jumlah").value = "";
+  await muatKasAdmin();
+  pratinjauBayarIuran();
+  document.getElementById("bi-rumah").focus();
+});
 
 document.getElementById("adm-matriks-iuran").addEventListener("click", (e) => {
   const sel = e.target.closest("[data-sel]");
@@ -443,17 +557,49 @@ document.getElementById("form-iuran").addEventListener("submit", async (e) => {
 /* =====================================================================
  * PENGUMUMAN & STATUS KEAMANAN
  * =================================================================== */
+let daftarPengumuman = []; // data terakhir, untuk mengisi form saat edit
+let idEditPengumuman = null; // null = mode "baru"
+
 document.getElementById("p-kategori").addEventListener("change", (e) => {
   tampil("wadah-status", e.target.value === "keamanan");
 });
 
+/** Ubah form antara mode "Pengumuman Baru" dan mode "Edit" */
+function modeFormPengumuman(p = null) {
+  idEditPengumuman = p ? p.id : null;
+  const form = document.getElementById("form-pengumuman");
+  form.reset();
+  if (p) {
+    document.getElementById("p-judul").value = p.judul;
+    document.getElementById("p-isi").value = p.isi;
+    document.getElementById("p-kategori").value = p.kategori;
+    if (p.status_keamanan) document.getElementById("p-status").value = p.status_keamanan;
+  }
+  tampil("wadah-status", document.getElementById("p-kategori").value === "keamanan");
+  document.getElementById("p-judul-form").textContent = p ? "Edit Pengumuman" : "Pengumuman Baru";
+  document.getElementById("p-ikon-judul").className = `fa-solid ${p ? "fa-pen-to-square text-amber-600" : "fa-bullhorn text-brand-600"} mr-2`;
+  document.getElementById("p-tombol-simpan").innerHTML = p
+    ? `<i class="fa-solid fa-floppy-disk mr-2"></i>Simpan Perubahan`
+    : `<i class="fa-solid fa-paper-plane mr-2"></i>Terbitkan`;
+  tampil("p-info-edit", !!p);
+  tampil("p-batal-edit", !!p);
+  form.classList.toggle("ring-2", !!p);
+  form.classList.toggle("ring-amber-300", !!p);
+  // Tandai kartu yang sedang diedit di daftar
+  document.querySelectorAll("[data-kartu-p]").forEach((el) =>
+    el.classList.toggle("ring-2", !!p && el.dataset.kartuP === String(p.id)));
+}
+
+document.getElementById("p-batal-edit").addEventListener("click", () => modeFormPengumuman(null));
+
 async function muatPengumumanAdmin() {
   const { data, error } = await sb.from("tabel_pengumuman").select("*").order("created_at", { ascending: false });
   if (error) return toast("Gagal memuat pengumuman: " + error.message, "error");
+  daftarPengumuman = data;
 
   document.getElementById("adm-daftar-pengumuman").innerHTML = data.length
     ? data.map((p) => `
-      <article class="bg-white rounded-2xl border border-stone-200 p-4 ${p.aktif ? "" : "opacity-60"}">
+      <article data-kartu-p="${p.id}" class="bg-white rounded-2xl border border-stone-200 p-4 ring-amber-300 ${p.aktif ? "" : "opacity-60"} ${p.id === idEditPengumuman ? "ring-2" : ""}">
         <div class="flex items-start justify-between gap-3">
           <div class="min-w-0">
             <div class="flex flex-wrap items-center gap-2 text-xs">
@@ -466,6 +612,7 @@ async function muatPengumumanAdmin() {
             <p class="text-sm text-stone-600 whitespace-pre-line">${escapeHtml(p.isi)}</p>
           </div>
           <div class="flex gap-1 shrink-0">
+            <button data-edit-p="${p.id}" class="w-9 h-9 rounded-lg hover:bg-amber-50 text-amber-600" title="Edit"><i class="fa-solid fa-pen-to-square"></i></button>
             <button data-toggle-p="${p.id}" data-aktif="${p.aktif}" class="w-9 h-9 rounded-lg hover:bg-stone-100" title="${p.aktif ? "Sembunyikan" : "Tampilkan"}"><i class="fa-solid ${p.aktif ? "fa-eye-slash" : "fa-eye"}"></i></button>
             <button data-hapus-p="${p.id}" class="w-9 h-9 rounded-lg hover:bg-rose-50 text-rose-500" title="Hapus"><i class="fa-solid fa-trash"></i></button>
           </div>
@@ -474,33 +621,52 @@ async function muatPengumumanAdmin() {
     : `<p class="text-sm text-stone-400">Belum ada pengumuman.</p>`;
 }
 
+// Simpan: insert bila mode baru, update bila mode edit
 document.getElementById("form-pengumuman").addEventListener("submit", async (e) => {
   e.preventDefault();
   const kategori = document.getElementById("p-kategori").value;
-  const pulihkan = tombolLoading(e.submitter || e.target.querySelector("button"), "Menerbitkan...");
-  const { error } = await sb.from("tabel_pengumuman").insert({
+  const isi = {
     judul: document.getElementById("p-judul").value.trim(),
     isi: document.getElementById("p-isi").value.trim(),
     kategori,
     status_keamanan: kategori === "keamanan" ? document.getElementById("p-status").value : null,
-  });
+  };
+  const sedangEdit = idEditPengumuman !== null;
+
+  const pulihkan = tombolLoading(document.getElementById("p-tombol-simpan"), sedangEdit ? "Menyimpan..." : "Menerbitkan...");
+  const { error } = sedangEdit
+    ? await sb.from("tabel_pengumuman").update(isi).eq("id", idEditPengumuman)
+    : await sb.from("tabel_pengumuman").insert(isi);
   pulihkan();
   if (error) return toast("Gagal: " + error.message, "error");
-  toast("Pengumuman terbit (realtime di portal warga).", "sukses");
-  e.target.reset();
-  tampil("wadah-status", false);
+
+  toast(sedangEdit ? "Perubahan pengumuman tersimpan." : "Pengumuman terbit (realtime di portal warga).", "sukses");
+  modeFormPengumuman(null);
   muatPengumumanAdmin();
 });
 
 document.getElementById("adm-daftar-pengumuman").addEventListener("click", async (e) => {
+  const edt = e.target.closest("[data-edit-p]");
   const tgl = e.target.closest("[data-toggle-p]");
   const hps = e.target.closest("[data-hapus-p]");
+
+  if (edt) {
+    const p = daftarPengumuman.find((x) => String(x.id) === edt.dataset.editP);
+    if (!p) return;
+    modeFormPengumuman(p);
+    document.getElementById("form-pengumuman").scrollIntoView({ behavior: "smooth", block: "start" });
+    document.getElementById("p-judul").focus();
+    return;
+  }
+
   let error;
   if (tgl) {
     ({ error } = await sb.from("tabel_pengumuman")
       .update({ aktif: tgl.dataset.aktif !== "true" }).eq("id", tgl.dataset.toggleP));
   } else if (hps && confirm("Hapus pengumuman ini?")) {
     ({ error } = await sb.from("tabel_pengumuman").delete().eq("id", hps.dataset.hapusP));
+    // Pengumuman yang sedang diedit ikut terhapus → kembali ke mode baru
+    if (!error && hps.dataset.hapusP === String(idEditPengumuman)) modeFormPengumuman(null);
   } else return;
   if (error) return toast("Gagal: " + error.message, "error");
   muatPengumumanAdmin();
@@ -564,9 +730,17 @@ document.getElementById("adm-tabel-warga").addEventListener("click", async (e) =
 /* =====================================================================
  * BUKTI FOTO (bucket privat → signed URL berlaku 5 menit)
  * =================================================================== */
+let rekapMingguan = []; // dipakai tombol "salin untuk WA"
+
+/** Status satu hari jadwal: "sesuai" | "pengganti" | "tanpa" | "menunggu" */
+function statusHari(j, b, hariIni) {
+  if (b) return (b.diunggah_oleh && b.diunggah_oleh !== j.nomor_rumah) ? "pengganti" : "sesuai";
+  return j.tanggal === hariIni ? "menunggu" : "tanpa";
+}
+
 async function muatBukti() {
   const hariIni = todayWIB();
-  const awal = tambahHari(hariIni, -30);
+  const awal = tambahHari(seninPekanIni(hariIni), -28); // 5 pekan: pekan ini + 4 pekan lalu
 
   const [{ data: jadwal, error: e1 }, { data: bukti, error: e2 }] = await Promise.all([
     sb.from("jadwal_piket").select("tanggal, nomor_rumah, nama_warga")
@@ -576,6 +750,13 @@ async function muatBukti() {
   if (e1 || e2) return toast("Gagal memuat bukti: " + (e1 || e2).message, "error");
 
   const peta = Object.fromEntries(bukti.map((b) => [`${b.tanggal}|${b.nomor_rumah}`, b]));
+  const LENCANA = {
+    sesuai: (b) => `<span class="px-2 py-1 rounded-full text-xs bg-emerald-100 text-emerald-700"><i class="fa-solid fa-check mr-1"></i>${formatWaktu(b.created_at)}</span>`,
+    pengganti: (b) => `<span class="px-2 py-1 rounded-full text-xs bg-amber-100 text-amber-800"><i class="fa-solid fa-people-arrows mr-1"></i>Pengganti: ${escapeHtml(b.diunggah_oleh)} · ${formatWaktu(b.created_at)}</span>`,
+    menunggu: () => `<span class="px-2 py-1 rounded-full text-xs bg-stone-100 text-stone-600"><i class="fa-solid fa-hourglass-half mr-1"></i>Menunggu</span>`,
+    tanpa: () => `<span class="px-2 py-1 rounded-full text-xs bg-rose-100 text-rose-700"><i class="fa-solid fa-xmark mr-1"></i>Tanpa bukti</span>`,
+  };
+
   document.getElementById("adm-tabel-bukti").innerHTML = jadwal.length
     ? jadwal.map((j) => {
       const b = peta[`${j.tanggal}|${j.nomor_rumah}`];
@@ -583,17 +764,115 @@ async function muatBukti() {
         <tr class="hover:bg-stone-50">
           <td class="px-4 py-3 whitespace-nowrap">${formatTanggal(j.tanggal, { weekday: "short", day: "numeric", month: "short" })}</td>
           <td class="px-4 py-3"><b>${escapeHtml(j.nomor_rumah)}</b> · ${escapeHtml(j.nama_warga)}</td>
-          <td class="px-4 py-3">${b
-            ? `<span class="px-2 py-1 rounded-full text-xs bg-emerald-100 text-emerald-700"><i class="fa-solid fa-check mr-1"></i>${formatWaktu(b.created_at)}</span>`
-            : `<span class="px-2 py-1 rounded-full text-xs bg-rose-100 text-rose-700"><i class="fa-solid fa-xmark mr-1"></i>Belum upload</span>`}</td>
-          <td class="px-4 py-3 text-right">${b
-            ? `<button data-lihat="${escapeHtml(b.path)}" class="text-brand-700 font-medium"><i class="fa-solid fa-image mr-1"></i>Lihat</button>` : ""}</td>
+          <td class="px-4 py-3">${LENCANA[statusHari(j, b, hariIni)](b)}</td>
+          <td class="px-4 py-3 text-right whitespace-nowrap">${b
+            ? `<button data-lihat="${escapeHtml(b.path)}" class="text-brand-700 font-medium"><i class="fa-solid fa-image mr-1"></i>Lihat</button>
+               <button data-hapus-bukti="${b.id}" data-path="${escapeHtml(b.path)}" data-label="${escapeHtml(`${j.nomor_rumah} ${formatTanggal(j.tanggal, { day: "numeric", month: "short" })}`)}"
+                       class="ml-3 text-rose-500 hover:text-rose-700" title="Hapus bukti (upload untuk tanggal ini terbuka lagi)"><i class="fa-solid fa-trash"></i></button>` : ""}</td>
         </tr>`;
     }).join("")
-    : `<tr><td colspan="4" class="px-4 py-6 text-center text-stone-400">Tidak ada jadwal dalam 30 hari terakhir.</td></tr>`;
+    : `<tr><td colspan="4" class="px-4 py-6 text-center text-stone-400">Tidak ada jadwal dalam 5 pekan terakhir.</td></tr>`;
+
+  // ---- Rekap per pekan (Senin–Minggu), terbaru di atas ----
+  const perPekan = {};
+  for (const j of jadwal) {
+    const senin = seninPekanIni(j.tanggal);
+    const p = (perPekan[senin] ||= { senin, hari: 0, sesuai: 0, pengganti: [], tanpa: [], menunggu: 0 });
+    const b = peta[`${j.tanggal}|${j.nomor_rumah}`];
+    const s = statusHari(j, b, hariIni);
+    p.hari++;
+    if (s === "sesuai") p.sesuai++;
+    else if (s === "pengganti") p.pengganti.push({ ...j, oleh: b.diunggah_oleh });
+    else if (s === "tanpa") p.tanpa.push(j);
+    else p.menunggu++;
+  }
+  rekapMingguan = Object.values(perPekan).sort((a, b) => (a.senin < b.senin ? 1 : -1));
+
+  const hariPendek = (t) => formatTanggal(t, { weekday: "short", day: "numeric" });
+  document.getElementById("adm-rekap-bukti").innerHTML = rekapMingguan.length
+    ? rekapMingguan.map((p, i) => {
+      const catatan = [
+        ...p.tanpa.map((j) => `<span class="text-rose-700">${hariPendek(j.tanggal)}: ${escapeHtml(j.nomor_rumah)} tanpa bukti</span>`),
+        ...p.pengganti.map((j) => `<span class="text-amber-700">${hariPendek(j.tanggal)}: ${escapeHtml(j.oleh)} menggantikan ${escapeHtml(j.nomor_rumah)}</span>`),
+        ...(p.menunggu ? [`<span class="text-stone-500">Hari ini menunggu bukti</span>`] : []),
+      ];
+      return `
+        <tr class="hover:bg-stone-50 align-top">
+          <td class="px-4 py-3 whitespace-nowrap font-medium">${formatTanggal(p.senin, { day: "numeric", month: "short" })} – ${formatTanggal(tambahHari(p.senin, 6), { day: "numeric", month: "short" })}</td>
+          <td class="px-3 py-3 text-center">${p.hari}</td>
+          <td class="px-3 py-3 text-center font-semibold text-emerald-700">${p.sesuai}</td>
+          <td class="px-3 py-3 text-center font-semibold text-amber-700">${p.pengganti.length}</td>
+          <td class="px-3 py-3 text-center font-semibold text-rose-700">${p.tanpa.length}</td>
+          <td class="px-4 py-3 text-xs space-y-0.5">${catatan.length ? catatan.map((c) => `<div>${c}</div>`).join("") : `<span class="text-emerald-700">Semua terkunci sesuai jadwal</span>`}</td>
+          <td class="px-3 py-3 text-right"><button data-salin-rekap="${i}" class="w-9 h-9 rounded-lg text-emerald-600 hover:bg-emerald-50" title="Salin laporan untuk WhatsApp"><i class="fa-brands fa-whatsapp text-lg"></i></button></td>
+        </tr>`;
+    }).join("")
+    : `<tr><td colspan="7" class="px-4 py-6 text-center text-stone-400">Belum ada data.</td></tr>`;
 }
 
+/** Teks laporan mingguan siap tempel ke grup WhatsApp (format *tebal* WA) */
+function teksLaporanWA(p) {
+  const rentang = `${formatTanggal(p.senin, { day: "numeric", month: "long" })} – ${formatTanggal(tambahHari(p.senin, 6), { day: "numeric", month: "long", year: "numeric" })}`;
+  const baris = [
+    `*Laporan Kunci Gerbang ${CFG.NAMA_CLUSTER}*`,
+    `Pekan ${rentang}`,
+    "",
+    `✅ Sesuai jadwal: ${p.sesuai} hari`,
+    `🔁 Oleh pengganti: ${p.pengganti.length} hari`,
+    `❌ Tanpa bukti: ${p.tanpa.length} hari`,
+  ];
+  if (p.pengganti.length) {
+    baris.push("", "*Pengganti:*", ...p.pengganti.map((j) =>
+      `- ${formatTanggal(j.tanggal, { weekday: "long", day: "numeric", month: "short" })}: Rumah ${j.oleh} menggantikan Rumah ${j.nomor_rumah}`));
+  }
+  if (p.tanpa.length) {
+    baris.push("", "*Tanpa bukti:*", ...p.tanpa.map((j) =>
+      `- ${formatTanggal(j.tanggal, { weekday: "long", day: "numeric", month: "short" })}: Rumah ${j.nomor_rumah} (${j.nama_warga})`));
+  }
+  baris.push("", "Terima kasih atas partisipasinya menjaga keamanan cluster 🙏");
+  return baris.join("\n");
+}
+
+document.getElementById("adm-rekap-bukti").addEventListener("click", async (e) => {
+  const btn = e.target.closest("[data-salin-rekap]");
+  if (!btn) return;
+  const teks = teksLaporanWA(rekapMingguan[Number(btn.dataset.salinRekap)]);
+  try {
+    await navigator.clipboard.writeText(teks);
+    toast("Laporan disalin. Tempel di grup WhatsApp.", "sukses");
+  } catch {
+    // Clipboard diblokir (mis. bukan HTTPS) → tampilkan untuk disalin manual
+    prompt("Salin laporan berikut:", teks);
+  }
+});
+
 document.getElementById("btn-muat-bukti").addEventListener("click", muatBukti);
+
+/**
+ * Hapus bukti: file di Storage (lewat Storage API) + catatan bukti_gerbang.
+ * Setelah dihapus, upload untuk tanggal itu terbuka lagi — berguna saat testing
+ * atau bila warga salah mengunggah foto.
+ */
+document.getElementById("adm-tabel-bukti").addEventListener("click", async (e) => {
+  const btn = e.target.closest("[data-hapus-bukti]");
+  if (!btn) return;
+  if (!confirm(`Hapus bukti foto ${btn.dataset.label}?\nFoto dihapus permanen dan upload untuk tanggal ini terbuka lagi.`)) return;
+
+  const pulihkan = tombolLoading(btn, "");
+  try {
+    // 1) File foto. File yang sudah tidak ada tidak dianggap error.
+    const { error: errFile } = await sb.storage.from(CFG.BUCKET_FOTO).remove([btn.dataset.path]);
+    if (errFile) throw errFile;
+    // 2) Catatan bukti → membuka kunci upload (sudah_upload jadi false)
+    const { error: errLog } = await sb.from("bukti_gerbang").delete().eq("id", btn.dataset.hapusBukti);
+    if (errLog) throw errLog;
+    toast(`Bukti ${btn.dataset.label} dihapus. Upload terbuka lagi.`, "sukses");
+    muatBukti();
+  } catch (err) {
+    toast("Gagal menghapus bukti: " + err.message, "error");
+    pulihkan();
+  }
+});
 
 document.getElementById("adm-tabel-bukti").addEventListener("click", async (e) => {
   const btn = e.target.closest("[data-lihat]");

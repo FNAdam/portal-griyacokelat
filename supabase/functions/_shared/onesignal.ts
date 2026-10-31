@@ -64,6 +64,14 @@ export async function kirimOneSignal(
   };
   if (url) body.web_url = url;
 
+  // Logo cluster sebagai ikon notifikasi (file assets/logo-192.png di GitHub Pages)
+  const siteUrl = Deno.env.get("SITE_URL");
+  if (siteUrl) {
+    const ikon = `${siteUrl.replace(/\/?$/, "/")}assets/logo-192.png`;
+    body.chrome_web_icon = ikon;
+    body.firefox_icon = ikon;
+  }
+
   const res = await fetch("https://api.onesignal.com/notifications?c=push", {
     method: "POST",
     headers: {

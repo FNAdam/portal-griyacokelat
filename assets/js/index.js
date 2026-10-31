@@ -1,51 +1,35 @@
 /* =====================================================================
  * index.js — Logika halaman warga (publik, tanpa login)
- *  1. Dashboard: jam & status gerbang, status keamanan, pengumuman realtime
+ *  1. Dashboard: pengumuman realtime + pengumuman otomatis "piket hari ini"
  *  2. Jadwal piket pekanan (realtime)
  *  3. Pendaftaran notifikasi OneSignal + tag "nomor_rumah"
  *  5. Ringkasan & riwayat uang kas (realtime)
  * ===================================================================== */
 
 const KUNCI_RUMAH_LOKAL = "portal_nomor_rumah"; // simpan nomor rumah di perangkat ini
-let seninTampil = seninPekanIni();               // pekan jadwal yang sedang ditampilkan
+let bulanTampil = todayWIB().slice(0, 7);        // bulan jadwal yang sedang ditampilkan ("YYYY-MM")
 
 /* ---------------------------------------------------------------------
  * 1. DASHBOARD
  * ------------------------------------------------------------------- */
 function isiInfoStatis() {
   document.getElementById("alamat-cluster").textContent = CFG.ALAMAT_CLUSTER;
-  document.getElementById("kontak-satpam").textContent = CFG.KONTAK_SATPAM;
-  document.getElementById("jam-buka").textContent = CFG.JAM_BUKA;
-  document.getElementById("jam-tutup").textContent = CFG.JAM_TUTUP;
   document.getElementById("hari-ini").textContent = formatTanggal(todayWIB());
 }
 
-/** Perbarui jam & status gerbang setiap detik */
-function perbaruiJamGerbang() {
-  document.getElementById("jam-sekarang").textContent = nowWIB().teks + " WIB";
-  const { buka } = statusGerbang();
-  const ikon = document.getElementById("ikon-gerbang");
-  document.getElementById("status-gerbang").textContent = buka ? "Terbuka" : "Terkunci";
-  document.getElementById("status-gerbang").className = `text-xl font-bold ${buka ? "text-emerald-700" : "text-rose-700"}`;
-  document.getElementById("sub-gerbang").textContent = buka
-    ? `Dikunci pukul ${CFG.JAM_TUTUP} WIB`
-    : `Dibuka kembali pukul ${CFG.JAM_BUKA} WIB`;
-  ikon.className = `w-12 h-12 rounded-xl grid place-items-center text-xl ${buka ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700"}`;
-  ikon.innerHTML = `<i class="fa-solid ${buka ? "fa-door-open" : "fa-door-closed"}"></i>`;
-}
-
-const GAYA_KEAMANAN = {
-  aman:    { label: "Aman",    warna: "bg-emerald-100 text-emerald-700", teks: "text-emerald-700", ikon: "fa-shield-halved" },
-  waspada: { label: "Waspada", warna: "bg-amber-100 text-amber-700",     teks: "text-amber-700",   ikon: "fa-triangle-exclamation" },
-  siaga:   { label: "Siaga",   warna: "bg-rose-100 text-rose-700",       teks: "text-rose-700",    ikon: "fa-land-mine-on" },
-};
 const GAYA_KATEGORI = {
   umum:     "bg-sky-50 text-sky-700",
   keamanan: "bg-amber-50 text-amber-700",
   penting:  "bg-rose-50 text-rose-700",
 };
+// Label status keamanan (opsional) pada pengumuman kategori "keamanan"
+const GAYA_KEAMANAN = {
+  aman:    "bg-emerald-100 text-emerald-700",
+  waspada: "bg-amber-100 text-amber-800",
+  siaga:   "bg-rose-100 text-rose-700",
+};
 
-/** Ambil pengumuman aktif + turunkan status keamanan dari pengumuman 'keamanan' terbaru */
+/** Ambil pengumuman aktif dari pengurus */
 async function muatPengumuman() {
   const { data, error } = await sb
     .from("tabel_pengumuman")
@@ -60,30 +44,15 @@ async function muatPengumuman() {
     return;
   }
 
-  // Status keamanan
-  const terbaru = data.find((p) => p.kategori === "keamanan" && p.status_keamanan);
-  const gaya = GAYA_KEAMANAN[terbaru?.status_keamanan] ?? null;
-  const ikonK = document.getElementById("ikon-keamanan");
-  if (gaya) {
-    document.getElementById("status-keamanan").textContent = gaya.label;
-    document.getElementById("status-keamanan").className = `text-xl font-bold ${gaya.teks}`;
-    document.getElementById("sub-keamanan").textContent = terbaru.judul;
-    ikonK.className = `w-12 h-12 rounded-xl grid place-items-center text-xl ${gaya.warna}`;
-    ikonK.innerHTML = `<i class="fa-solid ${gaya.ikon}"></i>`;
-  } else {
-    document.getElementById("status-keamanan").textContent = "Belum ada info";
-    document.getElementById("sub-keamanan").textContent = "-";
-  }
-
-  // Daftar pengumuman
   if (data.length === 0) {
-    wadah.innerHTML = `<p class="text-sm text-stone-400">Belum ada pengumuman.</p>`;
+    wadah.innerHTML = `<p class="text-sm text-stone-400">Belum ada pengumuman lain.</p>`;
     return;
   }
   wadah.innerHTML = data.map((p) => `
     <article class="p-4 rounded-xl border border-stone-100 hover:border-brand-200 transition">
-      <div class="flex items-center gap-2 text-xs">
+      <div class="flex flex-wrap items-center gap-2 text-xs">
         <span class="px-2 py-0.5 rounded-full font-medium capitalize ${GAYA_KATEGORI[p.kategori] || ""}">${escapeHtml(p.kategori)}</span>
+        ${p.status_keamanan ? `<span class="px-2 py-0.5 rounded-full font-medium capitalize ${GAYA_KEAMANAN[p.status_keamanan] || ""}">${escapeHtml(p.status_keamanan)}</span>` : ""}
         <span class="text-stone-400">${formatWaktu(p.created_at)}</span>
       </div>
       <h3 class="font-semibold mt-2">${escapeHtml(p.judul)}</h3>
@@ -95,55 +64,136 @@ async function muatPengumuman() {
  * 2. JADWAL PIKET
  * ------------------------------------------------------------------- */
 async function muatJadwal() {
-  const minggu = tambahHari(seninTampil, 6);
-  document.getElementById("label-pekan").textContent =
-    `${formatTanggal(seninTampil, { day: "numeric", month: "short" })} – ${formatTanggal(minggu, { day: "numeric", month: "short", year: "numeric" })}`;
+  const awal = `${bulanTampil}-01`;
+  const akhir = `${bulanTampil}-${String(jumlahHariBulan(bulanTampil)).padStart(2, "0")}`;
+  document.getElementById("label-bulan").textContent = namaBulan(bulanTampil);
 
-  const { data, error } = await sb
-    .from("jadwal_piket")
-    .select("tanggal, hari, nomor_rumah, nama_warga")
-    .gte("tanggal", seninTampil)
-    .lte("tanggal", minggu)
-    .order("tanggal");
+  // Jadwal + status bukti sebulan (status lewat RPC publik, tanpa foto; gagal → jadwal saja)
+  const [{ data, error }, { data: status }] = await Promise.all([
+    sb.from("jadwal_piket")
+      .select("tanggal, hari, nomor_rumah, nama_warga")
+      .gte("tanggal", awal).lte("tanggal", akhir)
+      .order("tanggal"),
+    sb.rpc("status_piket", { p_dari: awal, p_sampai: akhir }),
+  ]);
 
   const grid = document.getElementById("grid-jadwal");
   if (error) {
-    grid.innerHTML = `<p class="text-sm text-rose-600">Gagal memuat jadwal: ${escapeHtml(error.message)}</p>`;
+    grid.innerHTML = `<p class="col-span-7 text-sm text-rose-600">Gagal memuat jadwal: ${escapeHtml(error.message)}</p>`;
     return;
   }
 
   const hariIni = todayWIB();
   const peta = Object.fromEntries(data.map((j) => [j.tanggal, j]));
+  const petaStatus = Object.fromEntries((status || []).map((s) => [s.tanggal, s]));
 
-  grid.innerHTML = NAMA_HARI.map((hari, i) => {
-    const tgl = tambahHari(seninTampil, i);
+  // Kepala kolom hari + sel kosong sebelum tanggal 1
+  const kepala = NAMA_HARI.map((h, i) =>
+    `<div class="text-center text-[11px] sm:text-xs font-semibold py-1 ${i >= 5 ? "text-rose-500" : "text-stone-500"}">${h.slice(0, 3)}</div>`).join("");
+  const offset = `<div></div>`.repeat(indeksHariSenin(awal));
+
+  let sel = "";
+  for (let d = 1; d <= jumlahHariBulan(bulanTampil); d++) {
+    const tgl = `${bulanTampil}-${String(d).padStart(2, "0")}`;
     const j = peta[tgl];
     const aktif = tgl === hariIni;
-    return `
-      <div class="rounded-xl p-4 border ${aktif ? "border-brand-500 bg-brand-50 ring-2 ring-brand-200" : "border-stone-200"}">
-        <div class="flex items-center justify-between lg:block">
-          <p class="text-xs font-semibold uppercase tracking-wide ${aktif ? "text-brand-700" : "text-stone-400"}">${hari}${aktif ? " · Hari ini" : ""}</p>
-          <p class="text-xs text-stone-400 lg:mt-0.5">${formatTanggal(tgl, { day: "numeric", month: "short" })}</p>
+    const ikon = j ? ikonStatusPiket(j, petaStatus[tgl], tgl, hariIni, !!status) : "";
+    sel += `
+      <div class="min-w-0 rounded-lg sm:rounded-xl border p-1.5 sm:p-2 min-h-[4.25rem] sm:min-h-[5.5rem] ${
+        aktif ? "border-brand-500 bg-brand-50 ring-2 ring-brand-200" : j ? "border-stone-200" : "border-stone-100 bg-stone-50"}"
+        ${j ? `title="${escapeHtml(`${formatTanggal(tgl)} — Rumah ${j.nomor_rumah} · ${j.nama_warga}`)}"` : ""}>
+        <div class="flex items-start justify-between gap-1">
+          <span class="text-[11px] sm:text-xs ${aktif ? "font-bold text-brand-700" : "text-stone-400"}">${d}</span>
+          ${ikon}
         </div>
         ${j ? `
-          <p class="mt-2 text-lg font-bold text-brand-800"><i class="fa-solid fa-house mr-1 text-sm text-brand-400"></i>${escapeHtml(j.nomor_rumah)}</p>
-          <p class="text-sm text-stone-600 truncate">${escapeHtml(j.nama_warga)}</p>`
-        : `<p class="mt-2 text-sm text-stone-400 italic">Belum dijadwalkan</p>`}
+          <p class="mt-1 text-xs sm:text-base font-bold text-brand-800 truncate">${escapeHtml(j.nomor_rumah)}</p>
+          <p class="hidden sm:block text-xs text-stone-600 truncate">${escapeHtml(j.nama_warga)}</p>` : ""}
+        ${aktif ? `<p class="hidden sm:block text-[10px] font-semibold uppercase text-brand-600 mt-0.5">Hari ini</p>` : ""}
       </div>`;
-  }).join("");
+  }
+  grid.innerHTML = data.length
+    ? kepala + offset + sel
+    : kepala + offset + sel + `<p class="col-span-7 mt-2 text-sm text-stone-400 italic">Jadwal bulan ${namaBulan(bulanTampil)} belum diterbitkan.</p>`;
 
-  // Kartu "Piket hari ini" di dashboard (selalu berdasarkan hari ini)
+  // Pengumuman otomatis "piket hari ini" (selalu berdasarkan hari ini)
   muatPiketHariIni();
 }
 
+/** Ikon status kecil untuk sel kalender (detail di tooltip) */
+function ikonStatusPiket(jadwal, status, tgl, hariIni, adaData) {
+  if (!adaData || tgl > hariIni) return "";
+  const ikon = (faIkon, warna, judul, teksMd = "") =>
+    `<span class="text-[11px] sm:text-xs whitespace-nowrap ${warna}" title="${escapeHtml(judul)}"><i class="fa-solid ${faIkon}"></i>${teksMd ? `<span class="hidden md:inline ml-0.5">${escapeHtml(teksMd)}</span>` : ""}</span>`;
+  if (status && status.diunggah_oleh !== jadwal.nomor_rumah) {
+    return ikon("fa-people-arrows", "text-amber-600", `Dikunci pengganti: Rumah ${status.diunggah_oleh}`, status.diunggah_oleh);
+  }
+  if (status) return ikon("fa-lock", "text-emerald-600", "Terkunci, bukti foto sudah diunggah");
+  if (tgl === hariIni) return ikon("fa-hourglass-half", "text-stone-500", "Menunggu bukti foto");
+  return ikon("fa-circle-xmark", "text-rose-600", "Tanpa bukti foto");
+}
+
+/**
+ * Badge status kunci gerbang untuk satu hari jadwal:
+ *  ✅ Terkunci (petugas sendiri) · 🔁 Dikunci pengganti · ❌ Tanpa bukti · ⏳ Menunggu (hari ini)
+ */
+function badgeStatusPiket(jadwal, status, tgl, hariIni, adaData) {
+  if (!adaData || tgl > hariIni) return "";
+  const jam = status ? new Intl.DateTimeFormat("en-GB", {
+    timeZone: TZ, hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+  }).format(new Date(status.waktu_upload)) : "";
+  const badge = (warna, ikon, teks) =>
+    `<p class="mt-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${warna}"><i class="fa-solid ${ikon}"></i>${teks}</p>`;
+
+  if (status && status.diunggah_oleh !== jadwal.nomor_rumah) {
+    return badge("bg-amber-100 text-amber-800", "fa-people-arrows", `Dikunci ${escapeHtml(status.diunggah_oleh)} · ${jam}`);
+  }
+  if (status) return badge("bg-emerald-100 text-emerald-700", "fa-lock", `Terkunci · ${jam}`);
+  if (tgl === hariIni) return badge("bg-stone-100 text-stone-600", "fa-hourglass-half", "Menunggu bukti");
+  return badge("bg-rose-100 text-rose-700", "fa-circle-xmark", "Tanpa bukti");
+}
+
+/**
+ * Pengumuman otomatis "Piket Kunci Gerbang Hari Ini", disematkan di atas
+ * daftar pengumuman. Isinya selalu dihitung dari jadwal_piket tanggal hari ini
+ * (WIB) + status bukti, jadi tidak perlu diketik pengurus.
+ */
 async function muatPiketHariIni() {
-  const { data } = await sb
-    .from("jadwal_piket")
-    .select("nomor_rumah, nama_warga")
-    .eq("tanggal", todayWIB())
-    .maybeSingle();
-  document.getElementById("piket-hari-ini").textContent = data ? `Rumah ${data.nomor_rumah}` : "Belum ada";
-  document.getElementById("sub-piket").textContent = data ? data.nama_warga : "Jadwal belum diterbitkan";
+  const hariIni = todayWIB();
+  const [{ data: piket }, { data: status }] = await Promise.all([
+    sb.from("jadwal_piket").select("nomor_rumah, nama_warga").eq("tanggal", hariIni).maybeSingle(),
+    sb.rpc("status_piket", { p_dari: hariIni, p_sampai: hariIni }),
+  ]);
+  const wadah = document.getElementById("pengumuman-piket");
+
+  if (!piket) {
+    wadah.innerHTML = `
+      <article class="p-4 rounded-xl border border-stone-200 bg-stone-50">
+        <p class="text-xs font-medium text-stone-500"><i class="fa-solid fa-thumbtack mr-1"></i>Otomatis · ${formatTanggal(hariIni)}</p>
+        <h3 class="font-semibold mt-2">Piket Kunci Gerbang Hari Ini</h3>
+        <p class="text-sm text-stone-500 mt-1">Belum ada jadwal piket untuk hari ini.</p>
+      </article>`;
+    return;
+  }
+
+  wadah.innerHTML = `
+    <article class="p-4 rounded-xl border-2 border-brand-300 bg-brand-50">
+      <div class="flex flex-wrap items-center gap-2 text-xs">
+        <span class="px-2 py-0.5 rounded-full font-medium bg-brand-700 text-white"><i class="fa-solid fa-thumbtack mr-1"></i>Piket hari ini</span>
+        <span class="text-stone-500">${formatTanggal(hariIni)}</span>
+      </div>
+      <div class="mt-3 flex items-start gap-3">
+        <span class="w-11 h-11 shrink-0 rounded-xl grid place-items-center bg-brand-700 text-white text-lg"><i class="fa-solid fa-key"></i></span>
+        <div class="min-w-0 flex-1">
+          <h3 class="font-bold text-lg text-brand-900">Rumah ${escapeHtml(piket.nomor_rumah)} · ${escapeHtml(piket.nama_warga)}</h3>
+          <p class="text-sm text-stone-600">Bertugas mengunci gerbang pukul <b>${escapeHtml(CFG.JAM_TUTUP)} WIB</b> dan mengunggah foto bukti.</p>
+          <div class="mt-2 flex flex-wrap items-center gap-3">
+            ${badgeStatusPiket({ ...piket, tanggal: hariIni }, status?.[0], hariIni, hariIni, !!status)}
+            <a href="upload.html" class="mt-2 text-sm font-semibold text-brand-700 hover:underline"><i class="fa-solid fa-camera mr-1"></i>Upload bukti</a>
+          </div>
+        </div>
+      </div>
+    </article>`;
 }
 
 /* ---------------------------------------------------------------------
@@ -352,18 +402,29 @@ document.getElementById("btn-ubah-rumah").addEventListener("click", () => {
 /* ---------------------------------------------------------------------
  * INISIALISASI
  * ------------------------------------------------------------------- */
-document.getElementById("btn-pekan-sebelum").addEventListener("click", () => {
-  seninTampil = tambahHari(seninTampil, -7);
+document.getElementById("btn-bulan-sebelum").addEventListener("click", () => {
+  bulanTampil = geserBulan(bulanTampil, -1);
   muatJadwal();
 });
-document.getElementById("btn-pekan-sesudah").addEventListener("click", () => {
-  seninTampil = tambahHari(seninTampil, 7);
+document.getElementById("btn-bulan-sesudah").addEventListener("click", () => {
+  bulanTampil = geserBulan(bulanTampil, 1);
+  muatJadwal();
+});
+document.getElementById("btn-bulan-ini").addEventListener("click", () => {
+  bulanTampil = todayWIB().slice(0, 7);
   muatJadwal();
 });
 
 isiInfoStatis();
-perbaruiJamGerbang();
-setInterval(perbaruiJamGerbang, 1000);
+// Muat ulang pengumuman piket saat tanggal berganti (halaman dibiarkan terbuka lewat tengah malam)
+let tanggalTampil = todayWIB();
+setInterval(() => {
+  if (todayWIB() !== tanggalTampil) {
+    tanggalTampil = todayWIB();
+    isiInfoStatis();
+    muatJadwal(); // ikut memanggil muatPiketHariIni()
+  }
+}, 60 * 1000);
 muatPengumuman();
 muatJadwal();
 muatKas();

@@ -6,6 +6,9 @@
   <title>Panel Pengurus</title>
   <meta name="robots" content="noindex" />
   <meta name="theme-color" content="#744734" />
+  <!-- Logo cluster sebagai ikon tab browser & ikon layar utama HP -->
+  <link rel="icon" type="image/png" href="assets/logo-192.png" />
+  <link rel="apple-touch-icon" href="assets/logo-512.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <script src="https://cdn.tailwindcss.com"></script>
@@ -20,7 +23,7 @@
   <section id="layar-login" class="hidden min-h-screen grid place-items-center px-4">
     <form id="form-login" class="w-full max-w-sm bg-white rounded-3xl border border-stone-200 p-6 space-y-4 shadow-sm">
       <div class="text-center">
-        <span class="w-14 h-14 mx-auto rounded-2xl bg-brand-700 text-white grid place-items-center text-2xl"><i class="fa-solid fa-user-shield"></i></span>
+        <img src="assets/logo-192.png" alt="Logo Cluster Griya Cokelat" width="88" height="88" class="w-[5.5rem] h-[5.5rem] mx-auto rounded-full shadow-md" />
         <h1 class="font-bold text-xl mt-3">Panel Pengurus</h1>
         <p class="text-sm text-stone-500" data-nama-cluster>Cluster</p>
       </div>
@@ -44,7 +47,7 @@
     <header class="sticky top-0 z-40 bg-white/90 backdrop-blur border-b border-stone-200">
       <div class="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
         <div class="flex items-center gap-2">
-          <span class="w-9 h-9 rounded-xl bg-brand-700 text-white grid place-items-center"><i class="fa-solid fa-user-shield"></i></span>
+          <img src="assets/logo-192.png" alt="Logo Cluster Griya Cokelat" width="40" height="40" class="w-10 h-10 rounded-full shadow-sm" />
           <div class="leading-tight">
             <p class="text-xs text-stone-500">Panel Pengurus</p>
             <p class="font-bold text-brand-800" data-nama-cluster>Cluster</p>
@@ -110,6 +113,27 @@
           <div class="rounded-2xl p-5 bg-brand-800 text-white"><p class="text-sm text-brand-200">Saldo</p><p id="adm-kas-saldo" class="text-2xl font-extrabold">-</p></div>
         </div>
 
+        <!-- Bayar iuran sekaligus: nominal dibagi otomatis ke bulan yang belum lunas -->
+        <form id="form-bayar-iuran" class="bg-white rounded-2xl border border-stone-200 p-5 space-y-3">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <h2 class="font-bold"><i class="fa-solid fa-wand-magic-sparkles text-brand-600 mr-2"></i>Bayar Iuran (otomatis dibagi per bulan)</h2>
+            <span class="text-xs text-stone-500">Nominal dibagi <span class="label-iuran"></span>/bulan ke bulan yang belum lunas, mulai dari yang paling awal</span>
+          </div>
+          <div class="grid grid-cols-2 lg:grid-cols-5 gap-3 items-end">
+            <label class="block"><span class="text-sm font-medium">No. Rumah</span>
+              <input id="bi-rumah" list="daftar-rumah" required maxlength="12" autocomplete="off" placeholder="A12" class="mt-1 w-full px-3 py-2.5 rounded-xl border border-stone-300 uppercase focus:outline-none focus:ring-2 focus:ring-brand-500" /></label>
+            <label class="block"><span class="text-sm font-medium">Tanggal bayar</span>
+              <input id="bi-tanggal" type="date" required class="mt-1 w-full px-3 py-2.5 rounded-xl border border-stone-300 focus:outline-none focus:ring-2 focus:ring-brand-500" /></label>
+            <label class="block"><span class="text-sm font-medium">Jumlah (Rp)</span>
+              <input id="bi-jumlah" type="number" required min="1" step="1" inputmode="numeric" placeholder="100000" class="mt-1 w-full px-3 py-2.5 rounded-xl border border-stone-300 text-right focus:outline-none focus:ring-2 focus:ring-brand-500" /></label>
+            <label class="block"><span class="text-sm font-medium">Mulai bulan</span>
+              <input id="bi-mulai" type="month" required class="mt-1 w-full px-3 py-2.5 rounded-xl border border-stone-300 focus:outline-none focus:ring-2 focus:ring-brand-500" /></label>
+            <button class="col-span-2 lg:col-span-1 py-2.5 rounded-xl bg-emerald-600 text-white font-semibold hover:bg-emerald-700"><i class="fa-solid fa-check mr-1"></i>Simpan</button>
+          </div>
+          <!-- Pratinjau pembagian sebelum disimpan -->
+          <div id="bi-pratinjau" class="text-sm text-stone-500">Isi No. Rumah dan jumlah untuk melihat pembagian bulan.</div>
+        </form>
+
         <!-- Buku kas: iuran warga per bulan (klik sel untuk input) -->
         <div class="bg-white rounded-2xl border border-stone-200 overflow-hidden">
           <div class="px-5 py-4 border-b border-stone-100 flex flex-wrap items-center justify-between gap-2">
@@ -130,45 +154,37 @@
         <div class="bg-white rounded-2xl border border-stone-200 overflow-hidden">
           <div class="px-5 py-4 border-b border-stone-100 flex flex-wrap items-center justify-between gap-2">
             <h2 class="font-bold"><i class="fa-solid fa-receipt text-brand-600 mr-2"></i>Pengeluaran Uang Kas <span class="label-tahun"></span></h2>
-            <span class="text-xs text-stone-500">Input pengeluaran lewat tabel di bawah (Tipe: Keluar)</span>
+            <span class="text-xs text-stone-500">Input lewat tabel "Input Pengeluaran" di bawah</span>
           </div>
           <div id="adm-tabel-pengeluaran" class="overflow-x-auto"></div>
         </div>
 
-        <!-- Tabel kas: baris pertama = baris input, di bawahnya riwayat transaksi.
-             Input memakai atribut form="form-kas" karena <form> tidak boleh membungkus <tr>. -->
+        <!-- Input pengeluaran: baris pertama = baris input, di bawahnya riwayat pengeluaran.
+             Input memakai atribut form="form-kas" karena <form> tidak boleh membungkus <tr>.
+             (Iuran warga diinput lewat form "Bayar Iuran" / klik sel tabel iuran di atas.) -->
         <div class="bg-white rounded-2xl border border-stone-200 overflow-hidden">
           <div class="px-5 py-4 border-b border-stone-100 flex flex-wrap items-center justify-between gap-2">
-            <h2 class="font-bold"><i class="fa-solid fa-table text-brand-600 mr-2"></i>Semua Transaksi (input pengeluaran &amp; pemasukan lain)</h2>
-            <p class="text-xs text-stone-500">Isi baris berwarna di atas, lalu tekan <b>Enter</b> atau tombol <i class="fa-solid fa-plus"></i>. No. Rumah boleh kosong untuk pengeluaran.</p>
+            <h2 class="font-bold"><i class="fa-solid fa-file-invoice-dollar text-rose-600 mr-2"></i>Input Pengeluaran</h2>
+            <p class="text-xs text-stone-500">Isi baris berwarna di atas, lalu tekan <b>Enter</b> atau tombol <i class="fa-solid fa-plus"></i>.</p>
           </div>
           <form id="form-kas"></form>
           <datalist id="daftar-rumah"></datalist>
           <div class="overflow-x-auto max-h-[36rem]">
-            <table class="w-full text-sm min-w-[760px]">
+            <table class="w-full text-sm min-w-[560px]">
               <thead class="bg-stone-50 text-stone-500 text-left sticky top-0 z-10">
                 <tr>
                   <th class="px-3 py-3 font-medium w-40">Tanggal</th>
-                  <th class="px-3 py-3 font-medium w-28">No. Rumah</th>
                   <th class="px-3 py-3 font-medium">Keterangan</th>
-                  <th class="px-3 py-3 font-medium w-28">Tipe</th>
-                  <th class="px-3 py-3 font-medium text-right w-40">Jumlah (Rp)</th>
+                  <th class="px-3 py-3 font-medium text-right w-44">Jumlah (Rp)</th>
                   <th class="px-3 py-3 w-14"></th>
                 </tr>
               </thead>
               <tbody>
-                <tr class="bg-brand-50 border-b-2 border-brand-200">
+                <tr class="bg-rose-50 border-b-2 border-rose-200">
                   <td class="px-2 py-2"><input form="form-kas" id="kas-tanggal" type="date" required class="w-full px-2 py-2 rounded-lg border border-stone-300 bg-white focus:outline-none focus:ring-2 focus:ring-brand-500" /></td>
-                  <td class="px-2 py-2"><input form="form-kas" id="kas-rumah" list="daftar-rumah" maxlength="12" placeholder="A12" autocomplete="off" class="w-full px-2 py-2 rounded-lg border border-stone-300 bg-white uppercase focus:outline-none focus:ring-2 focus:ring-brand-500" /></td>
-                  <td class="px-2 py-2"><input form="form-kas" id="kas-keterangan" maxlength="200" placeholder="Kosongkan → otomatis &quot;Iuran [bulan]&quot;" class="w-full px-2 py-2 rounded-lg border border-stone-300 bg-white focus:outline-none focus:ring-2 focus:ring-brand-500" /></td>
-                  <td class="px-2 py-2">
-                    <select form="form-kas" id="kas-tipe" class="w-full px-2 py-2 rounded-lg border border-stone-300 bg-white focus:outline-none focus:ring-2 focus:ring-brand-500">
-                      <option value="masuk">Masuk</option>
-                      <option value="keluar">Keluar</option>
-                    </select>
-                  </td>
-                  <td class="px-2 py-2"><input form="form-kas" id="kas-jumlah" type="number" required min="1" step="1" inputmode="numeric" placeholder="50000" class="w-full px-2 py-2 rounded-lg border border-stone-300 bg-white text-right focus:outline-none focus:ring-2 focus:ring-brand-500" /></td>
-                  <td class="px-2 py-2 text-center"><button form="form-kas" type="submit" class="w-10 h-10 rounded-lg bg-brand-700 text-white hover:bg-brand-800" title="Simpan"><i class="fa-solid fa-plus"></i></button></td>
+                  <td class="px-2 py-2"><input form="form-kas" id="kas-keterangan" required maxlength="200" placeholder="Pembelian bak sampah 7 pcs" class="w-full px-2 py-2 rounded-lg border border-stone-300 bg-white focus:outline-none focus:ring-2 focus:ring-brand-500" /></td>
+                  <td class="px-2 py-2"><input form="form-kas" id="kas-jumlah" type="number" required min="1" step="1" inputmode="numeric" placeholder="635500" class="w-full px-2 py-2 rounded-lg border border-stone-300 bg-white text-right focus:outline-none focus:ring-2 focus:ring-brand-500" /></td>
+                  <td class="px-2 py-2 text-center"><button form="form-kas" type="submit" class="w-10 h-10 rounded-lg bg-rose-600 text-white hover:bg-rose-700" title="Simpan pengeluaran"><i class="fa-solid fa-plus"></i></button></td>
                 </tr>
               </tbody>
               <tbody id="adm-tabel-kas" class="divide-y divide-stone-100"></tbody>
@@ -180,13 +196,15 @@
       <!-- ---------------------- TAB: PENGUMUMAN ---------------------- -->
       <div id="tab-pengumuman" class="tab-panel hidden grid grid-cols-1 lg:grid-cols-3 gap-4">
         <form id="form-pengumuman" class="bg-white rounded-2xl border border-stone-200 p-5 space-y-3 h-fit">
-          <h2 class="font-bold text-lg"><i class="fa-solid fa-bullhorn text-brand-600 mr-2"></i>Pengumuman Baru</h2>
+          <h2 class="font-bold text-lg"><i id="p-ikon-judul" class="fa-solid fa-bullhorn text-brand-600 mr-2"></i><span id="p-judul-form">Pengumuman Baru</span></h2>
+          <!-- Muncul saat mode edit -->
+          <p id="p-info-edit" class="hidden text-xs bg-amber-50 text-amber-800 rounded-lg px-3 py-2"><i class="fa-solid fa-pen mr-1"></i>Sedang mengedit pengumuman. Perubahan langsung tampil di portal warga.</p>
           <input id="p-judul" required maxlength="120" placeholder="Judul" class="w-full px-4 py-2.5 rounded-xl border border-stone-300 focus:outline-none focus:ring-2 focus:ring-brand-500" />
           <textarea id="p-isi" required rows="4" placeholder="Isi pengumuman" class="w-full px-4 py-2.5 rounded-xl border border-stone-300 focus:outline-none focus:ring-2 focus:ring-brand-500"></textarea>
           <label class="block"><span class="text-sm font-medium">Kategori</span>
             <select id="p-kategori" class="mt-1 w-full px-4 py-2.5 rounded-xl border border-stone-300 bg-white">
               <option value="umum">Umum</option>
-              <option value="keamanan">Keamanan (ubah status lingkungan)</option>
+              <option value="keamanan">Keamanan</option>
               <option value="penting">Penting</option>
             </select></label>
           <label id="wadah-status" class="hidden block"><span class="text-sm font-medium">Status Keamanan</span>
@@ -195,7 +213,10 @@
               <option value="waspada">Waspada</option>
               <option value="siaga">Siaga</option>
             </select></label>
-          <button class="w-full py-2.5 rounded-xl bg-brand-700 text-white font-semibold hover:bg-brand-800"><i class="fa-solid fa-paper-plane mr-2"></i>Terbitkan</button>
+          <div class="flex gap-2">
+            <button type="button" id="p-batal-edit" class="hidden flex-1 py-2.5 rounded-xl border border-stone-300 font-semibold hover:bg-stone-50">Batal</button>
+            <button type="submit" id="p-tombol-simpan" class="flex-1 py-2.5 rounded-xl bg-brand-700 text-white font-semibold hover:bg-brand-800"><i class="fa-solid fa-paper-plane mr-2"></i>Terbitkan</button>
+          </div>
         </form>
         <div id="adm-daftar-pengumuman" class="lg:col-span-2 space-y-3"></div>
       </div>
@@ -223,10 +244,34 @@
       </div>
 
       <!-- ---------------------- TAB: BUKTI FOTO ---------------------- -->
-      <div id="tab-bukti" class="tab-panel hidden">
+      <div id="tab-bukti" class="tab-panel hidden space-y-4">
+        <!-- Rekap mingguan -->
+        <div class="bg-white rounded-2xl border border-stone-200 overflow-hidden">
+          <div class="px-5 py-4 border-b border-stone-100 flex flex-wrap items-center justify-between gap-2">
+            <span class="font-semibold"><i class="fa-solid fa-chart-column text-brand-600 mr-2"></i>Rekap Mingguan Kunci Gerbang</span>
+            <span class="text-xs text-stone-500">Tombol <i class="fa-brands fa-whatsapp"></i> menyalin laporan untuk dikirim ke grup WA</span>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm min-w-[640px]">
+              <thead class="bg-stone-50 text-stone-500 text-left">
+                <tr>
+                  <th class="px-4 py-3 font-medium">Pekan</th>
+                  <th class="px-3 py-3 font-medium text-center">Hari</th>
+                  <th class="px-3 py-3 font-medium text-center text-emerald-700">Sesuai jadwal</th>
+                  <th class="px-3 py-3 font-medium text-center text-amber-700">Pengganti</th>
+                  <th class="px-3 py-3 font-medium text-center text-rose-700">Tanpa bukti</th>
+                  <th class="px-4 py-3 font-medium">Catatan</th>
+                  <th class="px-3 py-3"></th>
+                </tr>
+              </thead>
+              <tbody id="adm-rekap-bukti" class="divide-y divide-stone-100"></tbody>
+            </table>
+          </div>
+        </div>
+
         <div class="bg-white rounded-2xl border border-stone-200 overflow-hidden">
           <div class="px-5 py-4 border-b border-stone-100 flex items-center justify-between">
-            <span class="font-semibold">Bukti Kunci Gerbang (30 hari terakhir)</span>
+            <span class="font-semibold">Bukti Kunci Gerbang (5 pekan terakhir)</span>
             <button id="btn-muat-bukti" class="text-sm text-brand-700"><i class="fa-solid fa-rotate mr-1"></i>Muat ulang</button>
           </div>
           <div class="overflow-x-auto">

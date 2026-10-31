@@ -105,9 +105,13 @@ create table if not exists public.bukti_gerbang (
   nomor_rumah text not null,
   tanggal     date not null default public.today_wib(),
   path        text not null unique,
+  -- Rumah yang benar-benar mengunggah (beda dengan nomor_rumah bila petugas pengganti)
+  diunggah_oleh text check (diunggah_oleh ~ '^[A-Z0-9-]{1,12}$'),
   created_at  timestamptz not null default now(),
   unique (nomor_rumah, tanggal)          -- pencegahan upload ganda di level DB
 );
+alter table public.bukti_gerbang
+  add column if not exists diunggah_oleh text check (diunggah_oleh ~ '^[A-Z0-9-]{1,12}$');
 
 create index if not exists idx_uang_kas_tanggal      on public.uang_kas (tanggal desc);
 create index if not exists idx_bukti_gerbang_tanggal on public.bukti_gerbang (tanggal);
@@ -184,6 +188,20 @@ security definer
 set search_path = public
 as $$
   select w.nomor_rumah, w.nama, w.aktif from public.warga w order by w.id;
+$$;
+
+-- Status piket untuk tampilan publik (tanpa foto). Maks. 62 hari per panggilan.
+create or replace function public.status_piket(p_dari date, p_sampai date)
+returns table (tanggal date, nomor_rumah text, diunggah_oleh text, waktu_upload timestamptz)
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select b.tanggal, b.nomor_rumah, coalesce(b.diunggah_oleh, b.nomor_rumah), b.created_at
+  from public.bukti_gerbang b
+  where b.tanggal between p_dari and p_sampai
+    and p_sampai - p_dari <= 62;
 $$;
 
 -- Dipakai policy storage: nama file harus PERSIS "NomorRumah_YYYY-MM-DD.jpg"
@@ -305,6 +323,12 @@ create policy "bukti_publik_insert" on public.bukti_gerbang
       select 1 from public.jadwal_piket j
       where j.tanggal = bukti_gerbang.tanggal
         and j.nomor_rumah = bukti_gerbang.nomor_rumah
+    )
+    -- Petugas pengganti harus warga aktif terdaftar
+    and (
+      diunggah_oleh is null
+      or diunggah_oleh = nomor_rumah
+      or public.rumah_terdaftar(diunggah_oleh)
     )
   );
 drop policy if exists "bukti_admin_full" on public.bukti_gerbang;
