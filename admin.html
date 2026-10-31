@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Panel Pengurus</title>
+  <meta name="robots" content="noindex" />
+  <meta name="theme-color" content="#744734" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="assets/js/tailwind-config.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+</head>
+
+<body class="bg-stone-50 text-stone-800 font-sans antialiased min-h-screen">
+
+  <!-- ============================== LOGIN ============================== -->
+  <section id="layar-login" class="hidden min-h-screen grid place-items-center px-4">
+    <form id="form-login" class="w-full max-w-sm bg-white rounded-3xl border border-stone-200 p-6 space-y-4 shadow-sm">
+      <div class="text-center">
+        <span class="w-14 h-14 mx-auto rounded-2xl bg-brand-700 text-white grid place-items-center text-2xl"><i class="fa-solid fa-user-shield"></i></span>
+        <h1 class="font-bold text-xl mt-3">Panel Pengurus</h1>
+        <p class="text-sm text-stone-500" data-nama-cluster>Cluster</p>
+      </div>
+      <label class="block">
+        <span class="text-sm font-medium">Email</span>
+        <input id="login-email" type="email" required autocomplete="username"
+               class="mt-1 w-full px-4 py-3 rounded-xl border border-stone-300 focus:outline-none focus:ring-2 focus:ring-brand-500" />
+      </label>
+      <label class="block">
+        <span class="text-sm font-medium">Kata Sandi</span>
+        <input id="login-password" type="password" required autocomplete="current-password"
+               class="mt-1 w-full px-4 py-3 rounded-xl border border-stone-300 focus:outline-none focus:ring-2 focus:ring-brand-500" />
+      </label>
+      <button class="w-full py-3 rounded-xl bg-brand-700 text-white font-semibold hover:bg-brand-800"><i class="fa-solid fa-right-to-bracket mr-2"></i>Masuk</button>
+      <a href="index.html" class="block text-center text-sm text-stone-500 hover:text-brand-700"><i class="fa-solid fa-arrow-left mr-1"></i>Kembali ke portal warga</a>
+    </form>
+  </section>
+
+  <!-- ============================== DASHBOARD ADMIN ============================== -->
+  <section id="layar-admin" class="hidden">
+    <header class="sticky top-0 z-40 bg-white/90 backdrop-blur border-b border-stone-200">
+      <div class="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <span class="w-9 h-9 rounded-xl bg-brand-700 text-white grid place-items-center"><i class="fa-solid fa-user-shield"></i></span>
+          <div class="leading-tight">
+            <p class="text-xs text-stone-500">Panel Pengurus</p>
+            <p class="font-bold text-brand-800" data-nama-cluster>Cluster</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-2 text-sm">
+          <span id="email-admin" class="hidden sm:inline text-stone-500"></span>
+          <a href="index.html" class="w-10 h-10 grid place-items-center rounded-lg hover:bg-stone-100" title="Lihat portal"><i class="fa-solid fa-eye"></i></a>
+          <button id="btn-logout" class="w-10 h-10 grid place-items-center rounded-lg hover:bg-rose-50 text-rose-600" title="Keluar"><i class="fa-solid fa-right-from-bracket"></i></button>
+        </div>
+      </div>
+      <!-- Tab navigasi -->
+      <nav class="max-w-6xl mx-auto px-4 flex gap-1 overflow-x-auto text-sm" id="tab-nav">
+        <button data-tab="jadwal" class="tab-btn px-4 py-3 border-b-2 whitespace-nowrap"><i class="fa-solid fa-shuffle mr-2"></i>Jadwal</button>
+        <button data-tab="kas" class="tab-btn px-4 py-3 border-b-2 whitespace-nowrap"><i class="fa-solid fa-wallet mr-2"></i>Kas</button>
+        <button data-tab="pengumuman" class="tab-btn px-4 py-3 border-b-2 whitespace-nowrap"><i class="fa-solid fa-bullhorn mr-2"></i>Pengumuman</button>
+        <button data-tab="warga" class="tab-btn px-4 py-3 border-b-2 whitespace-nowrap"><i class="fa-solid fa-users mr-2"></i>Warga</button>
+        <button data-tab="bukti" class="tab-btn px-4 py-3 border-b-2 whitespace-nowrap"><i class="fa-solid fa-images mr-2"></i>Bukti Foto</button>
+      </nav>
+    </header>
+
+    <main class="max-w-6xl mx-auto px-4 py-6">
+
+      <!-- ---------------------- TAB: GENERATOR JADWAL ---------------------- -->
+      <div id="tab-jadwal" class="tab-panel space-y-4">
+        <div class="bg-white rounded-2xl border border-stone-200 p-5">
+          <h2 class="font-bold text-lg"><i class="fa-solid fa-shuffle text-brand-600 mr-2"></i>Generator Jadwal Kunci Gerbang</h2>
+          <p class="text-sm text-stone-500 mt-1">Mengacak warga aktif ke hari Senin–Minggu. Rumah yang bertugas pekan lalu diprioritaskan terakhir agar giliran lebih adil.</p>
+
+          <div class="mt-4 flex flex-col sm:flex-row sm:items-end gap-3">
+            <label class="block">
+              <span class="text-sm font-medium">Senin awal pekan</span>
+              <input id="input-senin" type="date" class="mt-1 w-full sm:w-auto px-4 py-2.5 rounded-xl border border-stone-300 focus:outline-none focus:ring-2 focus:ring-brand-500" />
+            </label>
+            <button id="btn-acak" class="px-5 py-2.5 rounded-xl bg-stone-800 text-white font-semibold hover:bg-stone-900"><i class="fa-solid fa-dice mr-2"></i>Acak Jadwal</button>
+            <button id="btn-simpan-jadwal" disabled class="px-5 py-2.5 rounded-xl bg-brand-700 text-white font-semibold hover:bg-brand-800 disabled:bg-stone-300"><i class="fa-solid fa-floppy-disk mr-2"></i>Simpan &amp; Terbitkan</button>
+          </div>
+          <p id="info-acak" class="text-xs text-stone-500 mt-2"></p>
+
+          <div id="pratinjau-jadwal" class="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-7 gap-3"></div>
+        </div>
+
+        <!-- Broadcast OneSignal -->
+        <div class="bg-white rounded-2xl border border-stone-200 p-5">
+          <h2 class="font-bold text-lg"><i class="fa-solid fa-paper-plane text-brand-600 mr-2"></i>Kirim Notifikasi Broadcast</h2>
+          <p class="text-sm text-stone-500 mt-1">Dikirim ke semua HP warga yang mengaktifkan notifikasi (melalui Edge Function — API key OneSignal tidak pernah berada di browser).</p>
+          <form id="form-broadcast" class="mt-4 space-y-3">
+            <input id="bc-judul" required maxlength="100" value="Jadwal Piket Gerbang Pekan Baru Telah Terbit"
+                   class="w-full px-4 py-2.5 rounded-xl border border-stone-300 focus:outline-none focus:ring-2 focus:ring-brand-500" placeholder="Judul" />
+            <textarea id="bc-pesan" required maxlength="500" rows="3"
+                      class="w-full px-4 py-2.5 rounded-xl border border-stone-300 focus:outline-none focus:ring-2 focus:ring-brand-500" placeholder="Isi pesan">Cek giliran rumah Anda untuk mengunci gerbang pekan ini di portal warga.</textarea>
+            <button class="px-5 py-2.5 rounded-xl bg-amber-500 text-white font-semibold hover:bg-amber-600"><i class="fa-solid fa-bell mr-2"></i>Kirim ke Semua Warga</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- ---------------------- TAB: UANG KAS ---------------------- -->
+      <div id="tab-kas" class="tab-panel hidden space-y-4">
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div class="bg-white rounded-2xl border border-stone-200 p-5"><p class="text-sm text-stone-500">Pemasukan</p><p id="adm-kas-masuk" class="text-2xl font-extrabold text-emerald-700">-</p></div>
+          <div class="bg-white rounded-2xl border border-stone-200 p-5"><p class="text-sm text-stone-500">Pengeluaran</p><p id="adm-kas-keluar" class="text-2xl font-extrabold text-rose-700">-</p></div>
+          <div class="rounded-2xl p-5 bg-brand-800 text-white"><p class="text-sm text-brand-200">Saldo</p><p id="adm-kas-saldo" class="text-2xl font-extrabold">-</p></div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <form id="form-kas" class="bg-white rounded-2xl border border-stone-200 p-5 space-y-3 h-fit">
+            <h2 class="font-bold text-lg"><i class="fa-solid fa-plus text-brand-600 mr-2"></i>Input Transaksi</h2>
+            <label class="block"><span class="text-sm font-medium">Tanggal</span>
+              <input id="kas-tanggal" type="date" required class="mt-1 w-full px-4 py-2.5 rounded-xl border border-stone-300 focus:outline-none focus:ring-2 focus:ring-brand-500" /></label>
+            <label class="block"><span class="text-sm font-medium">Keterangan</span>
+              <input id="kas-keterangan" required maxlength="200" placeholder="Iuran bulanan rumah A12" class="mt-1 w-full px-4 py-2.5 rounded-xl border border-stone-300 focus:outline-none focus:ring-2 focus:ring-brand-500" /></label>
+            <div>
+              <span class="text-sm font-medium">Tipe</span>
+              <div class="mt-1 grid grid-cols-2 gap-2">
+                <label class="cursor-pointer"><input type="radio" name="kas-tipe" value="masuk" class="peer sr-only" checked />
+                  <span class="block text-center py-2.5 rounded-xl border border-stone-300 peer-checked:bg-emerald-600 peer-checked:text-white peer-checked:border-emerald-600"><i class="fa-solid fa-arrow-down mr-1"></i>Masuk</span></label>
+                <label class="cursor-pointer"><input type="radio" name="kas-tipe" value="keluar" class="peer sr-only" />
+                  <span class="block text-center py-2.5 rounded-xl border border-stone-300 peer-checked:bg-rose-600 peer-checked:text-white peer-checked:border-rose-600"><i class="fa-solid fa-arrow-up mr-1"></i>Keluar</span></label>
+              </div>
+            </div>
+            <label class="block"><span class="text-sm font-medium">Jumlah (Rp)</span>
+              <input id="kas-jumlah" type="number" required min="1" step="1" inputmode="numeric" placeholder="50000" class="mt-1 w-full px-4 py-2.5 rounded-xl border border-stone-300 focus:outline-none focus:ring-2 focus:ring-brand-500" /></label>
+            <button class="w-full py-2.5 rounded-xl bg-brand-700 text-white font-semibold hover:bg-brand-800"><i class="fa-solid fa-floppy-disk mr-2"></i>Simpan Transaksi</button>
+          </form>
+
+          <div class="lg:col-span-2 bg-white rounded-2xl border border-stone-200 overflow-hidden">
+            <div class="px-5 py-4 border-b border-stone-100 font-semibold">Riwayat Transaksi</div>
+            <div class="overflow-x-auto max-h-[32rem]">
+              <table class="w-full text-sm">
+                <thead class="bg-stone-50 text-stone-500 text-left sticky top-0">
+                  <tr><th class="px-4 py-3 font-medium">Tanggal</th><th class="px-4 py-3 font-medium">Keterangan</th><th class="px-4 py-3 font-medium text-right">Jumlah</th><th class="px-4 py-3"></th></tr>
+                </thead>
+                <tbody id="adm-tabel-kas" class="divide-y divide-stone-100"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ---------------------- TAB: PENGUMUMAN ---------------------- -->
+      <div id="tab-pengumuman" class="tab-panel hidden grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <form id="form-pengumuman" class="bg-white rounded-2xl border border-stone-200 p-5 space-y-3 h-fit">
+          <h2 class="font-bold text-lg"><i class="fa-solid fa-bullhorn text-brand-600 mr-2"></i>Pengumuman Baru</h2>
+          <input id="p-judul" required maxlength="120" placeholder="Judul" class="w-full px-4 py-2.5 rounded-xl border border-stone-300 focus:outline-none focus:ring-2 focus:ring-brand-500" />
+          <textarea id="p-isi" required rows="4" placeholder="Isi pengumuman" class="w-full px-4 py-2.5 rounded-xl border border-stone-300 focus:outline-none focus:ring-2 focus:ring-brand-500"></textarea>
+          <label class="block"><span class="text-sm font-medium">Kategori</span>
+            <select id="p-kategori" class="mt-1 w-full px-4 py-2.5 rounded-xl border border-stone-300 bg-white">
+              <option value="umum">Umum</option>
+              <option value="keamanan">Keamanan (ubah status lingkungan)</option>
+              <option value="penting">Penting</option>
+            </select></label>
+          <label id="wadah-status" class="hidden block"><span class="text-sm font-medium">Status Keamanan</span>
+            <select id="p-status" class="mt-1 w-full px-4 py-2.5 rounded-xl border border-stone-300 bg-white">
+              <option value="aman">Aman</option>
+              <option value="waspada">Waspada</option>
+              <option value="siaga">Siaga</option>
+            </select></label>
+          <button class="w-full py-2.5 rounded-xl bg-brand-700 text-white font-semibold hover:bg-brand-800"><i class="fa-solid fa-paper-plane mr-2"></i>Terbitkan</button>
+        </form>
+        <div id="adm-daftar-pengumuman" class="lg:col-span-2 space-y-3"></div>
+      </div>
+
+      <!-- ---------------------- TAB: DATA WARGA ---------------------- -->
+      <div id="tab-warga" class="tab-panel hidden grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <form id="form-warga" class="bg-white rounded-2xl border border-stone-200 p-5 space-y-3 h-fit">
+          <h2 class="font-bold text-lg"><i class="fa-solid fa-user-plus text-brand-600 mr-2"></i>Tambah Warga</h2>
+          <input id="w-nama" required maxlength="80" placeholder="Nama kepala keluarga" class="w-full px-4 py-2.5 rounded-xl border border-stone-300 focus:outline-none focus:ring-2 focus:ring-brand-500" />
+          <input id="w-rumah" required maxlength="12" placeholder="Nomor rumah, mis. A12" class="w-full px-4 py-2.5 rounded-xl border border-stone-300 uppercase focus:outline-none focus:ring-2 focus:ring-brand-500" />
+          <p class="text-xs text-stone-500">Hanya huruf, angka, dan tanda minus (spasi & simbol lain dihapus otomatis).</p>
+          <button class="w-full py-2.5 rounded-xl bg-brand-700 text-white font-semibold hover:bg-brand-800"><i class="fa-solid fa-floppy-disk mr-2"></i>Simpan</button>
+        </form>
+        <div class="lg:col-span-2 bg-white rounded-2xl border border-stone-200 overflow-hidden">
+          <div class="px-5 py-4 border-b border-stone-100 font-semibold">Daftar Warga <span id="jumlah-warga" class="text-stone-400 font-normal"></span></div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead class="bg-stone-50 text-stone-500 text-left">
+                <tr><th class="px-4 py-3 font-medium">Rumah</th><th class="px-4 py-3 font-medium">Nama</th><th class="px-4 py-3 font-medium">Status</th><th class="px-4 py-3"></th></tr>
+              </thead>
+              <tbody id="adm-tabel-warga" class="divide-y divide-stone-100"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ---------------------- TAB: BUKTI FOTO ---------------------- -->
+      <div id="tab-bukti" class="tab-panel hidden">
+        <div class="bg-white rounded-2xl border border-stone-200 overflow-hidden">
+          <div class="px-5 py-4 border-b border-stone-100 flex items-center justify-between">
+            <span class="font-semibold">Bukti Kunci Gerbang (30 hari terakhir)</span>
+            <button id="btn-muat-bukti" class="text-sm text-brand-700"><i class="fa-solid fa-rotate mr-1"></i>Muat ulang</button>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead class="bg-stone-50 text-stone-500 text-left">
+                <tr><th class="px-4 py-3 font-medium">Tanggal</th><th class="px-4 py-3 font-medium">Jadwal</th><th class="px-4 py-3 font-medium">Status</th><th class="px-4 py-3"></th></tr>
+              </thead>
+              <tbody id="adm-tabel-bukti" class="divide-y divide-stone-100"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </main>
+  </section>
+
+  <!-- Modal pratinjau foto -->
+  <div id="modal-foto" class="hidden fixed inset-0 z-50 bg-black/80 grid place-items-center p-4">
+    <div class="relative max-w-3xl w-full">
+      <button id="tutup-modal" class="absolute -top-12 right-0 w-10 h-10 rounded-full bg-white/10 text-white hover:bg-white/20" aria-label="Tutup"><i class="fa-solid fa-xmark"></i></button>
+      <img id="gambar-modal" class="w-full max-h-[80vh] object-contain rounded-xl bg-black" alt="Foto bukti" />
+      <p id="caption-modal" class="text-center text-white/80 text-sm mt-2"></p>
+    </div>
+  </div>
+
+  <script src="assets/js/config.js"></script>
+  <script src="assets/js/common.js"></script>
+  <script src="assets/js/admin.js"></script>
+</body>
+</html>

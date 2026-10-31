@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Upload Bukti Gerbang</title>
+  <meta name="theme-color" content="#744734" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="assets/js/tailwind-config.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+</head>
+
+<body class="bg-stone-50 text-stone-800 font-sans antialiased min-h-screen">
+
+  <header class="bg-white border-b border-stone-200">
+    <div class="max-w-lg mx-auto px-4 h-16 flex items-center gap-3">
+      <a href="index.html" class="w-10 h-10 grid place-items-center rounded-lg hover:bg-stone-100" aria-label="Kembali"><i class="fa-solid fa-arrow-left"></i></a>
+      <div class="leading-tight">
+        <p class="text-xs text-stone-500" data-nama-cluster>Cluster</p>
+        <h1 class="font-bold text-brand-800">Upload Bukti Kunci Gerbang</h1>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-lg mx-auto px-4 py-6 space-y-4">
+
+    <!-- Info piket hari ini -->
+    <div class="rounded-2xl bg-gradient-to-br from-brand-700 to-brand-900 text-white p-5">
+      <p class="text-brand-200 text-sm"><i class="fa-regular fa-calendar mr-1"></i><span id="tanggal-hari-ini">-</span></p>
+      <p class="mt-2 text-sm text-brand-100">Petugas kunci gerbang hari ini</p>
+      <p id="info-piket" class="text-2xl font-extrabold">Memuat...</p>
+      <p class="mt-2 text-xs text-brand-200"><i class="fa-solid fa-lock mr-1"></i>Gerbang dikunci pukul <span id="jam-tutup">23:00</span> WIB</p>
+    </div>
+
+    <!-- STATUS: memeriksa token -->
+    <div id="panel-memuat" class="bg-white rounded-2xl border border-stone-200 p-6 text-center text-stone-500">
+      <i class="fa-solid fa-spinner fa-spin text-2xl text-brand-600"></i>
+      <p class="mt-2 text-sm">Memeriksa akses...</p>
+    </div>
+
+    <!-- JALUR CADANGAN: verifikasi nomor rumah -->
+    <form id="panel-verifikasi" class="hidden bg-white rounded-2xl border border-stone-200 p-5 space-y-4">
+      <div>
+        <h2 class="font-bold text-lg"><i class="fa-solid fa-house-circle-check text-brand-600 mr-2"></i>Verifikasi Nomor Rumah</h2>
+        <p class="text-sm text-stone-500 mt-1">Masukkan nomor rumah Anda. Upload hanya terbuka untuk rumah yang terjadwal hari ini.</p>
+      </div>
+      <p id="pesan-token" class="hidden text-sm bg-amber-50 text-amber-800 rounded-xl p-3"></p>
+      <input id="input-nomor-rumah" type="text" required maxlength="12" autocomplete="off" placeholder="Contoh: A12"
+             class="w-full px-4 py-3 rounded-xl border border-stone-300 text-lg uppercase tracking-wider focus:outline-none focus:ring-2 focus:ring-brand-500" />
+      <button class="w-full py-3 rounded-xl bg-brand-700 text-white font-semibold hover:bg-brand-800"><i class="fa-solid fa-magnifying-glass mr-2"></i>Periksa Jadwal</button>
+    </form>
+
+    <!-- FORM UPLOAD (terbuka setelah token/nomor rumah valid) -->
+    <div id="panel-upload" class="hidden bg-white rounded-2xl border border-stone-200 p-5 space-y-4">
+      <div class="flex items-center gap-3">
+        <span class="w-11 h-11 rounded-xl grid place-items-center bg-emerald-100 text-emerald-700"><i class="fa-solid fa-unlock"></i></span>
+        <div>
+          <p class="text-xs text-stone-500">Terverifikasi melalui <span id="label-jalur"></span></p>
+          <p class="font-bold">Rumah <span id="label-rumah"></span> · <span id="label-nama"></span></p>
+        </div>
+      </div>
+
+      <label for="input-foto" id="area-foto"
+             class="block border-2 border-dashed border-stone-300 rounded-2xl p-6 text-center cursor-pointer hover:border-brand-400 hover:bg-brand-50 transition">
+        <img id="pratinjau" class="hidden mx-auto max-h-72 rounded-xl object-contain" alt="Pratinjau foto" />
+        <div id="placeholder-foto">
+          <i class="fa-solid fa-camera text-4xl text-brand-400"></i>
+          <p class="mt-2 font-semibold">Ambil / pilih foto gerbang terkunci</p>
+          <p class="text-xs text-stone-500 mt-1">Foto akan dikompres otomatis (JPEG)</p>
+        </div>
+      </label>
+      <input id="input-foto" type="file" accept="image/*" capture="environment" class="hidden" />
+
+      <p class="text-xs text-stone-500"><i class="fa-regular fa-file-image mr-1"></i>Nama file: <code id="label-nama-file" class="bg-stone-100 px-1.5 py-0.5 rounded"></code></p>
+
+      <button id="btn-upload" disabled
+              class="w-full py-3 rounded-xl bg-brand-700 text-white font-semibold hover:bg-brand-800 disabled:bg-stone-300 disabled:cursor-not-allowed">
+        <i class="fa-solid fa-cloud-arrow-up mr-2"></i>Upload Bukti
+      </button>
+    </div>
+
+    <!-- SUKSES / SUDAH UPLOAD (tombol terkunci) -->
+    <div id="panel-sukses" class="hidden bg-white rounded-2xl border border-emerald-200 p-6 text-center">
+      <span class="w-16 h-16 mx-auto rounded-full grid place-items-center bg-emerald-100 text-emerald-600 text-3xl"><i class="fa-solid fa-circle-check"></i></span>
+      <h2 class="font-bold text-xl mt-3">Bukti Sudah Diterima</h2>
+      <p class="text-sm text-stone-500 mt-1">Rumah <b id="sukses-rumah"></b> sudah mengunggah foto bukti untuk hari ini. Terima kasih telah menjaga keamanan cluster!</p>
+      <button disabled class="mt-4 w-full py-3 rounded-xl bg-stone-200 text-stone-500 font-semibold cursor-not-allowed"><i class="fa-solid fa-lock mr-2"></i>Upload Terkunci Hingga Besok</button>
+      <a href="index.html" class="inline-block mt-3 text-sm text-brand-700 underline">Kembali ke beranda</a>
+    </div>
+
+    <!-- TIDAK TERJADWAL -->
+    <div id="panel-tolak" class="hidden bg-white rounded-2xl border border-rose-200 p-6 text-center">
+      <span class="w-16 h-16 mx-auto rounded-full grid place-items-center bg-rose-100 text-rose-600 text-3xl"><i class="fa-solid fa-calendar-xmark"></i></span>
+      <h2 class="font-bold text-xl mt-3">Bukan Jadwal Anda</h2>
+      <p id="pesan-tolak" class="text-sm text-stone-500 mt-1"></p>
+      <button id="btn-coba-lagi" class="mt-4 w-full py-3 rounded-xl border border-stone-300 font-semibold hover:bg-stone-50"><i class="fa-solid fa-rotate-left mr-2"></i>Coba Nomor Lain</button>
+    </div>
+  </main>
+
+  <script src="assets/js/config.js"></script>
+  <script src="assets/js/common.js"></script>
+  <script src="assets/js/upload.js"></script>
+</body>
+</html>

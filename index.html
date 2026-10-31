@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Portal Warga</title>
+  <meta name="description" content="Portal informasi warga: pengumuman, jadwal piket gerbang, dan laporan kas." />
+  <meta name="theme-color" content="#744734" />
+
+  <!-- Font, Tailwind (Play CDN), FontAwesome -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="assets/js/tailwind-config.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
+
+  <!-- Supabase JS v2 (versi dipatok) -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+
+  <!-- OneSignal Web SDK v16 -->
+  <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
+</head>
+
+<body class="bg-stone-50 text-stone-800 font-sans antialiased pb-20 md:pb-0">
+
+  <!-- ============================== HEADER ============================== -->
+  <header class="sticky top-0 z-40 bg-white/90 backdrop-blur border-b border-stone-200">
+    <div class="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
+      <a href="#beranda" class="flex items-center gap-2">
+        <span class="w-9 h-9 rounded-xl bg-brand-700 text-white grid place-items-center"><i class="fa-solid fa-house-chimney"></i></span>
+        <span class="leading-tight">
+          <span class="block text-xs text-stone-500">Portal Warga</span>
+          <span class="block font-bold text-brand-800" data-nama-cluster>Cluster</span>
+        </span>
+      </a>
+      <nav class="hidden md:flex items-center gap-1 text-sm font-medium">
+        <a href="#beranda" class="px-3 py-2 rounded-lg hover:bg-brand-50">Beranda</a>
+        <a href="#jadwal" class="px-3 py-2 rounded-lg hover:bg-brand-50">Jadwal Piket</a>
+        <a href="#kas" class="px-3 py-2 rounded-lg hover:bg-brand-50">Uang Kas</a>
+        <a href="upload.html" class="px-3 py-2 rounded-lg hover:bg-brand-50">Upload Bukti</a>
+        <a href="admin.html" class="ml-2 px-3 py-2 rounded-lg bg-brand-700 text-white hover:bg-brand-800"><i class="fa-solid fa-user-shield mr-1"></i>Pengurus</a>
+      </nav>
+      <a href="admin.html" class="md:hidden w-10 h-10 grid place-items-center rounded-lg text-brand-700 hover:bg-brand-50" aria-label="Halaman pengurus"><i class="fa-solid fa-user-shield"></i></a>
+    </div>
+  </header>
+
+  <main class="max-w-6xl mx-auto px-4 py-6 space-y-8">
+
+    <!-- ============================== 1. HERO / INFO UMUM ============================== -->
+    <section id="beranda" class="scroll-mt-20">
+      <div class="rounded-3xl bg-gradient-to-br from-brand-700 via-brand-800 to-brand-900 text-white p-6 md:p-10 relative overflow-hidden">
+        <i class="fa-solid fa-shield-halved absolute -right-6 -bottom-8 text-[10rem] text-white/5"></i>
+        <p class="text-brand-200 text-sm font-medium"><i class="fa-regular fa-calendar mr-1"></i><span id="hari-ini">-</span></p>
+        <h1 class="text-2xl md:text-4xl font-extrabold mt-2">Selamat datang di <span data-nama-cluster>Cluster</span></h1>
+        <p class="text-brand-100 mt-2 max-w-xl" id="alamat-cluster"></p>
+        <div class="mt-6 flex flex-wrap gap-2 text-sm">
+          <a href="#jadwal" class="px-4 py-2 rounded-xl bg-white text-brand-800 font-semibold hover:bg-brand-50"><i class="fa-solid fa-calendar-week mr-2"></i>Lihat Jadwal</a>
+          <a href="upload.html" class="px-4 py-2 rounded-xl bg-white/10 ring-1 ring-white/30 font-semibold hover:bg-white/20"><i class="fa-solid fa-camera mr-2"></i>Upload Bukti Gerbang</a>
+        </div>
+      </div>
+
+      <!-- Kartu status -->
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4">
+        <!-- Status gerbang (dihitung dari jam WIB) -->
+        <div class="bg-white rounded-2xl border border-stone-200 p-5">
+          <div class="flex items-center justify-between">
+            <p class="text-sm text-stone-500 font-medium">Status Gerbang</p>
+            <span id="jam-sekarang" class="text-xs font-mono text-stone-400">--:--:--</span>
+          </div>
+          <div class="flex items-center gap-3 mt-3">
+            <span id="ikon-gerbang" class="w-12 h-12 rounded-xl grid place-items-center text-xl bg-stone-100 text-stone-400"><i class="fa-solid fa-door-closed"></i></span>
+            <div>
+              <p id="status-gerbang" class="text-xl font-bold">-</p>
+              <p id="sub-gerbang" class="text-xs text-stone-500">-</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Status keamanan (dari pengumuman kategori keamanan terbaru) -->
+        <div class="bg-white rounded-2xl border border-stone-200 p-5">
+          <p class="text-sm text-stone-500 font-medium">Status Keamanan Lingkungan</p>
+          <div class="flex items-center gap-3 mt-3">
+            <span id="ikon-keamanan" class="w-12 h-12 rounded-xl grid place-items-center text-xl bg-stone-100 text-stone-400"><i class="fa-solid fa-shield"></i></span>
+            <div class="min-w-0">
+              <p id="status-keamanan" class="text-xl font-bold">Memuat...</p>
+              <p id="sub-keamanan" class="text-xs text-stone-500 truncate">-</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Piket hari ini -->
+        <div class="bg-white rounded-2xl border border-stone-200 p-5">
+          <p class="text-sm text-stone-500 font-medium">Piket Kunci Gerbang Hari Ini</p>
+          <div class="flex items-center gap-3 mt-3">
+            <span class="w-12 h-12 rounded-xl grid place-items-center text-xl bg-brand-100 text-brand-700"><i class="fa-solid fa-key"></i></span>
+            <div class="min-w-0">
+              <p id="piket-hari-ini" class="text-xl font-bold truncate">-</p>
+              <p id="sub-piket" class="text-xs text-stone-500 truncate">-</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================== ATURAN GERBANG ============================== -->
+    <section class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <div class="bg-white rounded-2xl border border-stone-200 p-5 lg:col-span-1">
+        <h2 class="font-bold text-lg flex items-center gap-2"><i class="fa-solid fa-clock text-brand-600"></i>Aturan Jam Gerbang</h2>
+        <div class="mt-4 space-y-3">
+          <div class="flex items-center justify-between p-3 rounded-xl bg-emerald-50">
+            <span class="text-emerald-800 font-medium"><i class="fa-solid fa-door-open mr-2"></i>Gerbang Dibuka</span>
+            <span id="jam-buka" class="font-mono font-bold text-emerald-700">05:00</span>
+          </div>
+          <div class="flex items-center justify-between p-3 rounded-xl bg-rose-50">
+            <span class="text-rose-800 font-medium"><i class="fa-solid fa-door-closed mr-2"></i>Gerbang Dikunci</span>
+            <span id="jam-tutup" class="font-mono font-bold text-rose-700">23:00</span>
+          </div>
+        </div>
+        <ul class="mt-4 text-sm text-stone-600 space-y-2">
+          <li class="flex gap-2"><i class="fa-solid fa-check text-brand-500 mt-1"></i>Warga yang terjadwal wajib mengunci gerbang tepat waktu.</li>
+          <li class="flex gap-2"><i class="fa-solid fa-check text-brand-500 mt-1"></i>Unggah foto gerbang terkunci sebagai bukti (1 foto per hari).</li>
+          <li class="flex gap-2"><i class="fa-solid fa-check text-brand-500 mt-1"></i>Di luar jam buka, hubungi satpam: <span id="kontak-satpam" class="font-semibold"></span></li>
+        </ul>
+      </div>
+
+      <!-- Pengumuman (realtime dari tabel_pengumuman) -->
+      <div class="bg-white rounded-2xl border border-stone-200 p-5 lg:col-span-2">
+        <div class="flex items-center justify-between">
+          <h2 class="font-bold text-lg flex items-center gap-2"><i class="fa-solid fa-bullhorn text-brand-600"></i>Pengumuman</h2>
+          <span class="text-xs text-emerald-700 bg-emerald-50 px-2 py-1 rounded-full"><i class="fa-solid fa-circle text-[6px] align-middle mr-1 animate-pulse"></i>Live</span>
+        </div>
+        <div id="daftar-pengumuman" class="mt-4 space-y-3 max-h-96 overflow-y-auto pr-1">
+          <p class="text-sm text-stone-400">Memuat pengumuman...</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================== NOTIFIKASI (OneSignal) ============================== -->
+    <section id="notifikasi" class="bg-white rounded-2xl border border-stone-200 p-5">
+      <div class="flex flex-col md:flex-row md:items-center gap-4">
+        <span class="w-12 h-12 shrink-0 rounded-xl grid place-items-center text-xl bg-amber-100 text-amber-700"><i class="fa-solid fa-bell"></i></span>
+        <div class="flex-1">
+          <h2 class="font-bold text-lg">Notifikasi Jadwal Piket</h2>
+          <p class="text-sm text-stone-500">Aktifkan sekali saja. Anda akan diingatkan saat giliran rumah Anda mengunci gerbang, lengkap dengan link upload bukti otomatis. Bisa didaftarkan di beberapa HP untuk rumah yang sama.</p>
+        </div>
+
+        <!-- Langkah 1: minta izin -->
+        <div id="notif-langkah-izin">
+          <button id="btn-aktifkan-notif" class="w-full md:w-auto px-5 py-3 rounded-xl bg-brand-700 text-white font-semibold hover:bg-brand-800">
+            <i class="fa-solid fa-bell mr-2"></i>Aktifkan Notifikasi
+          </button>
+        </div>
+
+        <!-- Langkah 2: isi nomor rumah -->
+        <form id="notif-langkah-rumah" class="hidden flex gap-2 w-full md:w-auto">
+          <input id="input-rumah-notif" type="text" required maxlength="12" placeholder="Nomor rumah, mis. A12"
+                 class="flex-1 md:w-48 px-4 py-3 rounded-xl border border-stone-300 uppercase focus:outline-none focus:ring-2 focus:ring-brand-500" />
+          <button class="px-5 py-3 rounded-xl bg-brand-700 text-white font-semibold hover:bg-brand-800"><i class="fa-solid fa-floppy-disk"></i><span class="hidden sm:inline ml-2">Simpan</span></button>
+        </form>
+
+        <!-- Langkah 3: sudah terdaftar -->
+        <div id="notif-terdaftar" class="hidden text-sm">
+          <p class="text-emerald-700 font-semibold"><i class="fa-solid fa-circle-check mr-1"></i>Terdaftar: Rumah <span id="label-rumah-terdaftar"></span></p>
+          <button id="btn-ubah-rumah" class="text-brand-700 underline mt-1">Ubah nomor rumah</button>
+        </div>
+
+        <!-- Notifikasi diblokir / tidak didukung -->
+        <p id="notif-tidak-didukung" class="hidden text-sm text-rose-600"></p>
+      </div>
+    </section>
+
+    <!-- ============================== 2. JADWAL PIKET ============================== -->
+    <section id="jadwal" class="scroll-mt-20 bg-white rounded-2xl border border-stone-200 p-5">
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <h2 class="font-bold text-lg flex items-center gap-2"><i class="fa-solid fa-calendar-week text-brand-600"></i>Jadwal Piket Kunci Gerbang</h2>
+        <div class="flex items-center gap-1 text-sm">
+          <button id="btn-pekan-sebelum" class="w-9 h-9 rounded-lg hover:bg-stone-100" aria-label="Pekan sebelumnya"><i class="fa-solid fa-chevron-left"></i></button>
+          <span id="label-pekan" class="font-medium px-2 text-stone-600">-</span>
+          <button id="btn-pekan-sesudah" class="w-9 h-9 rounded-lg hover:bg-stone-100" aria-label="Pekan berikutnya"><i class="fa-solid fa-chevron-right"></i></button>
+        </div>
+      </div>
+      <div id="grid-jadwal" class="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-7 gap-3">
+        <p class="text-sm text-stone-400">Memuat jadwal...</p>
+      </div>
+    </section>
+
+    <!-- ============================== 5. UANG KAS ============================== -->
+    <section id="kas" class="scroll-mt-20 space-y-4">
+      <h2 class="font-bold text-lg flex items-center gap-2"><i class="fa-solid fa-wallet text-brand-600"></i>Laporan Uang Kas</h2>
+
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div class="bg-white rounded-2xl border border-stone-200 p-5">
+          <p class="text-sm text-stone-500"><i class="fa-solid fa-arrow-down text-emerald-600 mr-1"></i>Total Pemasukan</p>
+          <p id="kas-masuk" class="text-2xl font-extrabold text-emerald-700 mt-1">-</p>
+        </div>
+        <div class="bg-white rounded-2xl border border-stone-200 p-5">
+          <p class="text-sm text-stone-500"><i class="fa-solid fa-arrow-up text-rose-600 mr-1"></i>Total Pengeluaran</p>
+          <p id="kas-keluar" class="text-2xl font-extrabold text-rose-700 mt-1">-</p>
+        </div>
+        <div class="rounded-2xl p-5 bg-brand-800 text-white">
+          <p class="text-sm text-brand-200"><i class="fa-solid fa-sack-dollar mr-1"></i>Sisa Saldo</p>
+          <p id="kas-saldo" class="text-2xl font-extrabold mt-1">-</p>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-2xl border border-stone-200 overflow-hidden">
+        <div class="px-5 py-4 border-b border-stone-100 flex items-center justify-between">
+          <h3 class="font-semibold">Riwayat Transaksi Terkini</h3>
+          <span class="text-xs text-stone-400">20 transaksi terakhir</span>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead class="bg-stone-50 text-stone-500 text-left">
+              <tr>
+                <th class="px-5 py-3 font-medium">Tanggal</th>
+                <th class="px-5 py-3 font-medium">Keterangan</th>
+                <th class="px-5 py-3 font-medium text-right">Jumlah</th>
+              </tr>
+            </thead>
+            <tbody id="tabel-kas" class="divide-y divide-stone-100">
+              <tr><td colspan="3" class="px-5 py-6 text-center text-stone-400">Memuat...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="max-w-6xl mx-auto px-4 py-8 text-center text-xs text-stone-400">
+    &copy; <span data-tahun></span> <span data-nama-cluster></span> · Dikelola oleh pengurus warga
+  </footer>
+
+  <!-- ============================== NAV BAWAH (MOBILE) ============================== -->
+  <nav class="md:hidden fixed bottom-0 inset-x-0 z-40 bg-white border-t border-stone-200 grid grid-cols-4 text-xs">
+    <a href="#beranda" class="py-2 flex flex-col items-center gap-1 text-stone-600"><i class="fa-solid fa-house text-lg"></i>Beranda</a>
+    <a href="#jadwal" class="py-2 flex flex-col items-center gap-1 text-stone-600"><i class="fa-solid fa-calendar-week text-lg"></i>Jadwal</a>
+    <a href="#kas" class="py-2 flex flex-col items-center gap-1 text-stone-600"><i class="fa-solid fa-wallet text-lg"></i>Kas</a>
+    <a href="upload.html" class="py-2 flex flex-col items-center gap-1 text-brand-700 font-semibold"><i class="fa-solid fa-camera text-lg"></i>Upload</a>
+  </nav>
+
+  <script src="assets/js/config.js"></script>
+  <script src="assets/js/common.js"></script>
+  <script src="assets/js/index.js"></script>
+</body>
+</html>
