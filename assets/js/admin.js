@@ -89,8 +89,40 @@ document.querySelectorAll(".tab-btn").forEach((b) => b.addEventListener("click",
  * 2. GENERATOR JADWAL PIKET
  * =================================================================== */
 function siapkanGenerator() {
-  const input = document.getElementById("input-senin");
-  if (!input.value) input.value = tambahHari(seninPekanIni(), 7); // default: Senin pekan depan
+  const input = document.getElementById("input-bulan");
+  if (!input.value) {
+    // Default: bulan depan (format "YYYY-MM")
+    const [y, m] = todayWIB().split("-").map(Number);
+    input.value = new Date(Date.UTC(y, m, 1)).toISOString().slice(0, 7);
+  }
+}
+
+/** Jumlah hari dalam bulan "YYYY-MM" */
+function jumlahHariBulan(bulan) {
+  const [y, m] = bulan.split("-").map(Number);
+  return new Date(Date.UTC(y, m, 0)).getUTCDate();
+}
+
+/** "2026-11" → "November 2026" */
+function namaBulan(bulan) {
+  const [y, m] = bulan.split("-").map(Number);
+  return new Intl.DateTimeFormat("id-ID", { month: "long", year: "numeric", timeZone: "UTC" })
+    .format(new Date(Date.UTC(y, m - 1, 1)));
+}
+
+/**
+ * Tanggal-tanggal yang dijadwalkan pada bulan "YYYY-MM".
+ * Hari ini & tanggal yang sudah lewat dilewati, agar jadwal/token hari ini
+ * (yang mungkin sudah dikirim lewat notifikasi) tidak berubah.
+ */
+function tanggalDijadwalkan(bulan) {
+  const hariIni = todayWIB();
+  const hasil = [];
+  for (let d = 1; d <= jumlahHariBulan(bulan); d++) {
+    const tgl = `${bulan}-${String(d).padStart(2, "0")}`;
+    if (tgl > hariIni) hasil.push(tgl);
+  }
+  return hasil;
 }
 
 /** Fisher–Yates shuffle (acak adil, tidak bias) */
@@ -104,12 +136,11 @@ function acak(array) {
 }
 
 document.getElementById("btn-acak").addEventListener("click", async (e) => {
-  const input = document.getElementById("input-senin");
-  if (!input.value) return toast("Pilih tanggal awal pekan.", "error");
+  const bulan = document.getElementById("input-bulan").value;
+  if (!bulan) return toast("Pilih bulan terlebih dahulu.", "error");
 
-  // Paksa ke hari Senin pada pekan yang dipilih
-  const senin = seninPekanIni(input.value);
-  input.value = senin;
+  const daftarTanggal = tanggalDijadwalkan(bulan);
+  if (!daftarTanggal.length) return toast("Bulan tersebut sudah lewat. Pilih bulan lain.", "error");
 
   const pulihkan = tombolLoading(e.currentTarget, "Mengacak...");
   try {
@@ -118,29 +149,34 @@ document.getElementById("btn-acak").addEventListener("click", async (e) => {
     if (error) throw error;
     if (!warga.length) return toast("Belum ada warga aktif. Tambahkan di tab Warga.", "error");
 
-    // Rumah yang bertugas pekan sebelumnya → ditaruh di urutan akhir
+    // Hitung berapa kali tiap rumah bertugas dalam 30 hari sebelum tanggal pertama
+    const awal = daftarTanggal[0];
     const { data: lalu } = await sb
       .from("jadwal_piket").select("nomor_rumah")
-      .gte("tanggal", tambahHari(senin, -7)).lte("tanggal", tambahHari(senin, -1));
-    const setLalu = new Set((lalu || []).map((j) => j.nomor_rumah));
+      .gte("tanggal", tambahHari(awal, -30)).lt("tanggal", awal);
+    const hitungLalu = {};
+    (lalu || []).forEach((j) => { hitungLalu[j.nomor_rumah] = (hitungLalu[j.nomor_rumah] || 0) + 1; });
 
-    const teracak = acak(warga);
-    const urutan = [
-      ...teracak.filter((w) => !setLalu.has(w.nomor_rumah)),
-      ...teracak.filter((w) => setLalu.has(w.nomor_rumah)),
-    ];
+    // Acak dulu, lalu urutkan (stabil) dari yang paling jarang bertugas.
+    // Rumah di depan mendapat giliran lebih dulu / lebih banyak bila hari tidak habis dibagi.
+    const urutan = acak(warga).sort((a, b) => (hitungLalu[a.nomor_rumah] || 0) - (hitungLalu[b.nomor_rumah] || 0));
 
-    // > 7 rumah: ambil 7 pertama. < 7 rumah: berputar (satu rumah bisa >1 hari).
-    jadwalDraf = NAMA_HARI.map((hari, i) => {
+    // Isi tanggal berurutan secara berputar: semua rumah kebagian dulu sebelum ada yang mengulang.
+    jadwalDraf = daftarTanggal.map((tanggal, i) => {
       const w = urutan[i % urutan.length];
-      return { tanggal: tambahHari(senin, i), hari, nomor_rumah: w.nomor_rumah, nama_warga: w.nama };
+      return { tanggal, hari: NAMA_HARI[indeksHariSenin(tanggal)], nomor_rumah: w.nomor_rumah, nama_warga: w.nama };
     });
 
-    document.getElementById("info-acak").textContent =
-      warga.length < 7
-        ? `Hanya ${warga.length} rumah aktif — beberapa rumah mendapat lebih dari satu hari.`
-        : `${warga.length} rumah aktif — ${Math.max(0, warga.length - 7)} rumah tidak terjadwal pekan ini.`;
-    renderPratinjauJadwal();
+    const nHari = daftarTanggal.length;
+    const nRumah = warga.length;
+    const dilewati = jumlahHariBulan(bulan) - nHari;
+    let info = `${namaBulan(bulan)}: ${nHari} hari untuk ${nRumah} rumah aktif — `;
+    info += nRumah >= nHari
+      ? `${nHari} rumah bertugas masing-masing 1 kali, ${nRumah - nHari} rumah belum kebagian (diprioritaskan bulan berikutnya).`
+      : `tiap rumah bertugas ${Math.floor(nHari / nRumah)}–${Math.ceil(nHari / nRumah)} kali.`;
+    if (dilewati) info += ` ${dilewati} tanggal (hari ini & sebelumnya) tidak diubah.`;
+    document.getElementById("info-acak").textContent = info;
+    renderPratinjauJadwal(bulan);
     document.getElementById("btn-simpan-jadwal").disabled = false;
   } catch (err) {
     toast("Gagal mengacak: " + err.message, "error");
@@ -149,19 +185,34 @@ document.getElementById("btn-acak").addEventListener("click", async (e) => {
   }
 });
 
-function renderPratinjauJadwal() {
-  document.getElementById("pratinjau-jadwal").innerHTML = jadwalDraf.map((j) => `
-    <div class="rounded-xl p-4 border border-dashed border-brand-300 bg-brand-50">
-      <p class="text-xs font-semibold uppercase text-brand-700">${j.hari}</p>
-      <p class="text-xs text-stone-400">${formatTanggal(j.tanggal, { day: "numeric", month: "short" })}</p>
-      <p class="mt-2 text-lg font-bold text-brand-800">${escapeHtml(j.nomor_rumah)}</p>
-      <p class="text-sm text-stone-600 truncate">${escapeHtml(j.nama_warga)}</p>
-    </div>`).join("");
+/** Pratinjau berbentuk kalender bulanan (kolom Senin–Minggu) */
+function renderPratinjauJadwal(bulan) {
+  const peta = Object.fromEntries(jadwalDraf.map((j) => [j.tanggal, j]));
+
+  const kepala = NAMA_HARI.map((h) =>
+    `<div class="text-center text-xs font-semibold text-stone-500 py-1">${h.slice(0, 3)}</div>`).join("");
+  // Sel kosong sebelum tanggal 1 agar jatuh di kolom hari yang benar
+  const offset = "<div></div>".repeat(indeksHariSenin(`${bulan}-01`));
+
+  let isi = "";
+  for (let d = 1; d <= jumlahHariBulan(bulan); d++) {
+    const j = peta[`${bulan}-${String(d).padStart(2, "0")}`];
+    isi += j
+      ? `<div class="rounded-lg border border-brand-300 bg-brand-50 p-1.5 sm:p-2 min-h-[3.5rem] min-w-0" title="${escapeHtml(j.nama_warga)}">
+           <p class="text-[10px] sm:text-xs text-stone-400">${d}</p>
+           <p class="text-xs sm:text-sm font-bold text-brand-800 truncate">${escapeHtml(j.nomor_rumah)}</p>
+           <p class="hidden sm:block text-xs text-stone-600 truncate">${escapeHtml(j.nama_warga)}</p>
+         </div>`
+      : `<div class="rounded-lg border border-stone-100 bg-stone-50 p-1.5 sm:p-2 min-h-[3.5rem]" title="Tidak diubah">
+           <p class="text-[10px] sm:text-xs text-stone-300">${d}</p>
+         </div>`;
+  }
+  document.getElementById("pratinjau-jadwal").innerHTML = kepala + offset + isi;
 }
 
 document.getElementById("btn-simpan-jadwal").addEventListener("click", async (e) => {
   if (!jadwalDraf.length) return;
-  if (!confirm("Simpan jadwal ini? Jadwal lama pada tanggal yang sama akan ditimpa.")) return;
+  if (!confirm(`Simpan jadwal ${jadwalDraf.length} hari? Jadwal lama pada tanggal yang sama akan ditimpa.`)) return;
 
   const btn = e.currentTarget;
   const pulihkan = tombolLoading(btn, "Menyimpan...");

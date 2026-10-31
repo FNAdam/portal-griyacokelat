@@ -72,19 +72,20 @@
       <div id="tab-jadwal" class="tab-panel space-y-4">
         <div class="bg-white rounded-2xl border border-stone-200 p-5">
           <h2 class="font-bold text-lg"><i class="fa-solid fa-shuffle text-brand-600 mr-2"></i>Generator Jadwal Kunci Gerbang</h2>
-          <p class="text-sm text-stone-500 mt-1">Mengacak warga aktif ke hari Senin–Minggu. Rumah yang bertugas pekan lalu diprioritaskan terakhir agar giliran lebih adil.</p>
+          <p class="text-sm text-stone-500 mt-1">Mengacak warga aktif ke setiap tanggal dalam 1 bulan. Giliran dibagi rata; rumah yang paling sering bertugas 30 hari terakhir ditaruh di urutan akhir. Tanggal hari ini dan sebelumnya tidak diubah.</p>
 
           <div class="mt-4 flex flex-col sm:flex-row sm:items-end gap-3">
             <label class="block">
-              <span class="text-sm font-medium">Senin awal pekan</span>
-              <input id="input-senin" type="date" class="mt-1 w-full sm:w-auto px-4 py-2.5 rounded-xl border border-stone-300 focus:outline-none focus:ring-2 focus:ring-brand-500" />
+              <span class="text-sm font-medium">Bulan</span>
+              <input id="input-bulan" type="month" class="mt-1 w-full sm:w-auto px-4 py-2.5 rounded-xl border border-stone-300 focus:outline-none focus:ring-2 focus:ring-brand-500" />
             </label>
             <button id="btn-acak" class="px-5 py-2.5 rounded-xl bg-stone-800 text-white font-semibold hover:bg-stone-900"><i class="fa-solid fa-dice mr-2"></i>Acak Jadwal</button>
             <button id="btn-simpan-jadwal" disabled class="px-5 py-2.5 rounded-xl bg-brand-700 text-white font-semibold hover:bg-brand-800 disabled:bg-stone-300"><i class="fa-solid fa-floppy-disk mr-2"></i>Simpan &amp; Terbitkan</button>
           </div>
           <p id="info-acak" class="text-xs text-stone-500 mt-2"></p>
 
-          <div id="pratinjau-jadwal" class="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-7 gap-3"></div>
+          <!-- Pratinjau kalender bulanan (7 kolom: Senin–Minggu) -->
+          <div id="pratinjau-jadwal" class="mt-4 grid grid-cols-7 gap-1 sm:gap-2"></div>
         </div>
 
         <!-- Broadcast OneSignal -->
@@ -92,10 +93,10 @@
           <h2 class="font-bold text-lg"><i class="fa-solid fa-paper-plane text-brand-600 mr-2"></i>Kirim Notifikasi Broadcast</h2>
           <p class="text-sm text-stone-500 mt-1">Dikirim ke semua HP warga yang mengaktifkan notifikasi (melalui Edge Function — API key OneSignal tidak pernah berada di browser).</p>
           <form id="form-broadcast" class="mt-4 space-y-3">
-            <input id="bc-judul" required maxlength="100" value="Jadwal Piket Gerbang Pekan Baru Telah Terbit"
+            <input id="bc-judul" required maxlength="100" value="Jadwal Piket Gerbang Bulan Baru Telah Terbit"
                    class="w-full px-4 py-2.5 rounded-xl border border-stone-300 focus:outline-none focus:ring-2 focus:ring-brand-500" placeholder="Judul" />
             <textarea id="bc-pesan" required maxlength="500" rows="3"
-                      class="w-full px-4 py-2.5 rounded-xl border border-stone-300 focus:outline-none focus:ring-2 focus:ring-brand-500" placeholder="Isi pesan">Cek giliran rumah Anda untuk mengunci gerbang pekan ini di portal warga.</textarea>
+                      class="w-full px-4 py-2.5 rounded-xl border border-stone-300 focus:outline-none focus:ring-2 focus:ring-brand-500" placeholder="Isi pesan">Cek giliran rumah Anda untuk mengunci gerbang bulan ini di portal warga.</textarea>
             <button class="px-5 py-2.5 rounded-xl bg-amber-500 text-white font-semibold hover:bg-amber-600"><i class="fa-solid fa-bell mr-2"></i>Kirim ke Semua Warga</button>
           </form>
         </div>

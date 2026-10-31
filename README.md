@@ -120,7 +120,7 @@ Edit nilai di `supabase/cron.sql` (URL proyek & `CRON_SECRET` yang sama), lalu j
 - **SDK OneSignal v16**: padanan `OneSignal.sendTag()` (v15) adalah `OneSignal.User.addTag()`. Fungsi `sendTagNomorRumah()` di `index.js` menangani keduanya.
 - **iPhone/iPad**: web push hanya berfungsi bila situs ditambahkan ke *Home Screen* (iOS 16.4+).
 - **Tailwind Play CDN** dipakai agar tanpa proses build. Untuk produksi yang lebih ringan, bisa diganti dengan Tailwind CLI.
-- Jumlah rumah < 7: generator memutar daftar (satu rumah bisa >1 hari). > 7: 7 rumah teratas hasil acak; rumah yang bertugas pekan lalu ditaruh di urutan akhir.
+- Generator membuat jadwal **1 bulan penuh** sekali klik. Giliran berputar sehingga semua rumah kebagian sebelum ada yang mengulang; rumah yang paling sering bertugas 30 hari terakhir ditaruh di urutan akhir. Tanggal hari ini dan sebelumnya tidak diubah.
 - Semua tanggal "hari ini" dihitung dalam **WIB**, baik di browser maupun di database (`today_wib()`).
 - Token link & izin upload berlaku sampai **23:59 WIB** di hari jadwal. Upload setelah tengah malam ditolak (sesuai aturan "tanggal hari ini").
 
