@@ -25,6 +25,9 @@ window.APP_CONFIG = {
   JAM_BUKA: "05:00",
   JAM_TUTUP: "23:00",
 
+  // Iuran kas bulanan per rumah (Rp) — nilai bawaan saat input di tabel iuran
+  IURAN_BULANAN: 25000,
+
   // Nama bucket Supabase Storage
   BUCKET_FOTO: "foto-gerbang",
 };

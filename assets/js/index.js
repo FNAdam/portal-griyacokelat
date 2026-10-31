@@ -149,44 +149,68 @@ async function muatPiketHariIni() {
 /* ---------------------------------------------------------------------
  * 5. UANG KAS (rekap dihitung otomatis di JavaScript)
  * ------------------------------------------------------------------- */
+let kasWarga = [];     // [{nomor_rumah, nama, aktif}] dari RPC publik
+let kasTransaksi = []; // semua baris uang_kas
+
 async function muatKas() {
-  // Ambil kolom minimal untuk kalkulasi total (dengan paging agar tidak terpotong 1000 baris)
-  const { data: semua, error } = await ambilSemua(() => sb.from("uang_kas").select("tipe, jumlah").order("id"));
+  // Semua transaksi (paging agar tidak terpotong 1000 baris) + daftar warga untuk kolom Nama
+  const [{ data: semua, error }, { data: warga }] = await Promise.all([
+    ambilSemua(() => sb.from("uang_kas").select("*").order("id")),
+    sb.rpc("daftar_warga_publik"),
+  ]);
   if (error) {
+    const pesan = `Gagal memuat kas: ${escapeHtml(error.message)}`;
     document.getElementById("tabel-kas").innerHTML =
-      `<tr><td colspan="3" class="px-5 py-6 text-center text-rose-600">Gagal memuat kas: ${escapeHtml(error.message)}</td></tr>`;
+      `<tr><td colspan="4" class="px-5 py-6 text-center text-rose-600">${pesan}</td></tr>`;
+    document.getElementById("matriks-iuran").innerHTML = `<p class="px-5 py-6 text-sm text-rose-600">${pesan}</p>`;
     return;
   }
+  kasTransaksi = semua;
+  kasWarga = warga || [];
+
+  // Ringkasan sepanjang waktu (saldo kas bersifat kumulatif)
   const { masuk, keluar, saldo } = hitungRingkasanKas(semua);
   document.getElementById("kas-masuk").textContent = formatRupiah(masuk);
   document.getElementById("kas-keluar").textContent = formatRupiah(keluar);
   document.getElementById("kas-saldo").textContent = formatRupiah(saldo);
 
-  // Riwayat terkini
-  const { data: riwayat } = await sb
-    .from("uang_kas")
-    .select("*")
-    .order("tanggal", { ascending: false })
-    .order("id", { ascending: false })
-    .limit(20);
+  isiPilihanTahun("kas-tahun", semua);
+  renderBukuKas();
+
+  // Riwayat terkini: 20 transaksi terbaru
+  const riwayat = [...semua]
+    .sort((a, b) => (a.tanggal === b.tanggal ? b.id - a.id : a.tanggal < b.tanggal ? 1 : -1))
+    .slice(0, 20);
 
   const tbody = document.getElementById("tabel-kas");
   if (!riwayat?.length) {
-    tbody.innerHTML = `<tr><td colspan="3" class="px-5 py-6 text-center text-stone-400">Belum ada transaksi.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="4" class="px-5 py-6 text-center text-stone-400">Belum ada transaksi.</td></tr>`;
     return;
   }
   tbody.innerHTML = riwayat.map((r) => {
     const masukTx = r.tipe === "masuk";
     return `
       <tr class="hover:bg-stone-50">
-        <td class="px-5 py-3 whitespace-nowrap text-stone-500">${formatTanggal(r.tanggal, { day: "numeric", month: "short", year: "numeric" })}</td>
-        <td class="px-5 py-3">${escapeHtml(r.keterangan)}</td>
-        <td class="px-5 py-3 text-right font-semibold whitespace-nowrap ${masukTx ? "text-emerald-700" : "text-rose-700"}">
+        <td class="px-4 sm:px-5 py-3 whitespace-nowrap text-stone-500">${formatTanggal(r.tanggal, { day: "numeric", month: "short", year: "numeric" })}</td>
+        <td class="px-4 sm:px-5 py-3 font-semibold text-brand-800">${r.nomor_rumah ? escapeHtml(r.nomor_rumah) : `<span class="text-stone-300">—</span>`}</td>
+        <td class="px-4 sm:px-5 py-3">${escapeHtml(r.keterangan)}</td>
+        <td class="px-4 sm:px-5 py-3 text-right font-semibold whitespace-nowrap ${masukTx ? "text-emerald-700" : "text-rose-700"}">
           ${masukTx ? "+" : "−"} ${formatRupiah(r.jumlah)}
         </td>
       </tr>`;
   }).join("");
 }
+
+/** Gambar tabel iuran & pengeluaran untuk tahun yang dipilih */
+function renderBukuKas() {
+  const tahun = Number(document.getElementById("kas-tahun").value);
+  document.querySelectorAll(".label-tahun").forEach((el) => (el.textContent = tahun));
+  document.querySelectorAll(".label-iuran").forEach((el) => (el.textContent = formatRupiah(CFG.IURAN_BULANAN || 25000)));
+  document.getElementById("matriks-iuran").innerHTML = htmlMatriksIuran(kasWarga, kasTransaksi, tahun);
+  document.getElementById("tabel-pengeluaran").innerHTML = htmlPengeluaran(kasTransaksi, tahun);
+}
+
+document.getElementById("kas-tahun").addEventListener("change", renderBukuKas);
 
 /* ---------------------------------------------------------------------
  * REALTIME: dengarkan perubahan tabel & muat ulang bagian terkait

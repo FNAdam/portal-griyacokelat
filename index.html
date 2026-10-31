@@ -186,7 +186,12 @@
 
     <!-- ============================== 5. UANG KAS ============================== -->
     <section id="kas" class="scroll-mt-20 space-y-4">
-      <h2 class="font-bold text-lg flex items-center gap-2"><i class="fa-solid fa-wallet text-brand-600"></i>Laporan Uang Kas</h2>
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <h2 class="font-bold text-lg flex items-center gap-2"><i class="fa-solid fa-wallet text-brand-600"></i>Laporan Uang Kas</h2>
+        <label class="text-sm text-stone-500">Tahun
+          <select id="kas-tahun" class="ml-1 px-3 py-1.5 rounded-lg border border-stone-300 bg-white font-semibold text-stone-800"></select>
+        </label>
+      </div>
 
       <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div class="bg-white rounded-2xl border border-stone-200 p-5">
@@ -203,26 +208,49 @@
         </div>
       </div>
 
+      <!-- Iuran warga per bulan (format buku kas) -->
       <div class="bg-white rounded-2xl border border-stone-200 overflow-hidden">
-        <div class="px-5 py-4 border-b border-stone-100 flex items-center justify-between">
-          <h3 class="font-semibold">Riwayat Transaksi Terkini</h3>
-          <span class="text-xs text-stone-400">20 transaksi terakhir</span>
+        <div class="px-5 py-4 border-b border-stone-100 flex flex-wrap items-center justify-between gap-2">
+          <h3 class="font-semibold"><i class="fa-solid fa-table-cells text-brand-600 mr-2"></i>Kas <span data-nama-cluster></span> <span class="label-tahun"></span></h3>
+          <span class="text-xs text-stone-500">Iuran <span class="label-iuran"></span>/bulan · geser tabel ke samping untuk bulan lain</span>
         </div>
-        <div class="overflow-x-auto">
+        <div id="matriks-iuran" class="overflow-x-auto">
+          <p class="px-5 py-6 text-sm text-stone-400">Memuat...</p>
+        </div>
+      </div>
+
+      <!-- Pengeluaran per bulan -->
+      <div class="bg-white rounded-2xl border border-stone-200 overflow-hidden">
+        <div class="px-5 py-4 border-b border-stone-100">
+          <h3 class="font-semibold"><i class="fa-solid fa-receipt text-brand-600 mr-2"></i>Pengeluaran Uang Kas <span class="label-tahun"></span></h3>
+        </div>
+        <div id="tabel-pengeluaran" class="overflow-x-auto">
+          <p class="px-5 py-6 text-sm text-stone-400">Memuat...</p>
+        </div>
+      </div>
+
+      <!-- Riwayat lengkap (dilipat) -->
+      <details class="bg-white rounded-2xl border border-stone-200 overflow-hidden group">
+        <summary class="px-5 py-4 flex items-center justify-between cursor-pointer select-none">
+          <h3 class="font-semibold">Riwayat Transaksi Terkini</h3>
+          <span class="text-xs text-stone-400">20 transaksi terakhir <i class="fa-solid fa-chevron-down ml-1 transition group-open:rotate-180"></i></span>
+        </summary>
+        <div class="overflow-x-auto border-t border-stone-100">
           <table class="w-full text-sm">
             <thead class="bg-stone-50 text-stone-500 text-left">
               <tr>
-                <th class="px-5 py-3 font-medium">Tanggal</th>
-                <th class="px-5 py-3 font-medium">Keterangan</th>
-                <th class="px-5 py-3 font-medium text-right">Jumlah</th>
+                <th class="px-4 sm:px-5 py-3 font-medium">Tanggal</th>
+                <th class="px-4 sm:px-5 py-3 font-medium">No. Rumah</th>
+                <th class="px-4 sm:px-5 py-3 font-medium">Keterangan</th>
+                <th class="px-4 sm:px-5 py-3 font-medium text-right">Jumlah</th>
               </tr>
             </thead>
             <tbody id="tabel-kas" class="divide-y divide-stone-100">
-              <tr><td colspan="3" class="px-5 py-6 text-center text-stone-400">Memuat...</td></tr>
+              <tr><td colspan="4" class="px-5 py-6 text-center text-stone-400">Memuat...</td></tr>
             </tbody>
           </table>
         </div>
-      </div>
+      </details>
     </section>
   </main>
 

@@ -264,55 +264,179 @@ document.getElementById("form-broadcast").addEventListener("submit", async (e) =
 /* =====================================================================
  * 5. UANG KAS (BENDAHARA)
  * =================================================================== */
+const IURAN_BULANAN = CFG.IURAN_BULANAN || 25000;
+let petaWarga = {};                             // nomor_rumah → nama, untuk saran input & validasi
+let kasCache = { warga: [], transaksi: [] };    // data terakhir untuk tabel iuran & modal
+let selIuran = null;                            // sel yang sedang dibuka: { rumah, bulan, tahun }
+
+/** Format "YYYY-MM-01" untuk kolom periode_iuran */
+function periodeIuran(tahun, bulan) {
+  return `${tahun}-${String(bulan).padStart(2, "0")}-01`;
+}
+
 async function muatKasAdmin() {
   document.getElementById("kas-tanggal").value ||= todayWIB();
-  const { data, error } = await ambilSemua(() => sb
-    .from("uang_kas").select("*")
-    .order("tanggal", { ascending: false }).order("id", { ascending: false }));
+
+  const [{ data, error }, { data: warga }] = await Promise.all([
+    ambilSemua(() => sb
+      .from("uang_kas").select("*")
+      .order("tanggal", { ascending: false }).order("id", { ascending: false })),
+    sb.from("warga").select("nomor_rumah, nama, aktif").order("id"),
+  ]);
   if (error) return toast("Gagal memuat kas: " + error.message, "error");
+
+  // Saran No. Rumah pada baris input
+  kasCache = { warga: warga || [], transaksi: data };
+  petaWarga = Object.fromEntries(kasCache.warga.map((w) => [w.nomor_rumah, w.nama]));
+  document.getElementById("daftar-rumah").innerHTML = kasCache.warga
+    .map((w) => `<option value="${escapeHtml(w.nomor_rumah)}">${escapeHtml(w.nama)}</option>`).join("");
 
   const { masuk, keluar, saldo } = hitungRingkasanKas(data);
   document.getElementById("adm-kas-masuk").textContent = formatRupiah(masuk);
   document.getElementById("adm-kas-keluar").textContent = formatRupiah(keluar);
   document.getElementById("adm-kas-saldo").textContent = formatRupiah(saldo);
 
+  isiPilihanTahun("adm-kas-tahun", data);
+  renderBukuKasAdmin();
+
   document.getElementById("adm-tabel-kas").innerHTML = data.length
-    ? data.map((r) => `
+    ? data.map((r) => {
+      const masukTx = r.tipe === "masuk";
+      return `
       <tr class="hover:bg-stone-50">
-        <td class="px-4 py-3 whitespace-nowrap text-stone-500">${formatTanggal(r.tanggal, { day: "numeric", month: "short", year: "numeric" })}</td>
-        <td class="px-4 py-3">${escapeHtml(r.keterangan)}</td>
-        <td class="px-4 py-3 text-right font-semibold whitespace-nowrap ${r.tipe === "masuk" ? "text-emerald-700" : "text-rose-700"}">${r.tipe === "masuk" ? "+" : "−"} ${formatRupiah(r.jumlah)}</td>
-        <td class="px-4 py-3 text-right"><button data-hapus-kas="${r.id}" class="text-rose-500 hover:text-rose-700" title="Hapus"><i class="fa-solid fa-trash"></i></button></td>
-      </tr>`).join("")
-    : `<tr><td colspan="4" class="px-4 py-6 text-center text-stone-400">Belum ada transaksi.</td></tr>`;
+        <td class="px-3 py-3 whitespace-nowrap text-stone-500">${formatTanggal(r.tanggal, { day: "numeric", month: "short", year: "numeric" })}</td>
+        <td class="px-3 py-3 font-semibold text-brand-800">${r.nomor_rumah ? escapeHtml(r.nomor_rumah) : `<span class="text-stone-300">—</span>`}</td>
+        <td class="px-3 py-3">${escapeHtml(r.keterangan)}</td>
+        <td class="px-3 py-3"><span class="px-2 py-0.5 rounded-full text-xs font-medium ${masukTx ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700"}">${masukTx ? "Masuk" : "Keluar"}</span></td>
+        <td class="px-3 py-3 text-right font-semibold whitespace-nowrap ${masukTx ? "text-emerald-700" : "text-rose-700"}">${masukTx ? "+" : "−"} ${formatRupiah(r.jumlah)}</td>
+        <td class="px-3 py-3 text-center"><button data-hapus-kas="${r.id}" class="text-rose-500 hover:text-rose-700" title="Hapus"><i class="fa-solid fa-trash"></i></button></td>
+      </tr>`;
+    }).join("")
+    : `<tr><td colspan="6" class="px-4 py-6 text-center text-stone-400">Belum ada transaksi.</td></tr>`;
 }
 
 document.getElementById("form-kas").addEventListener("submit", async (e) => {
   e.preventDefault();
+  const tanggal = document.getElementById("kas-tanggal").value;
+  const nomor = normalisasiNomorRumah(document.getElementById("kas-rumah").value) || null;
+  const tipe = document.getElementById("kas-tipe").value;
   const jumlah = parseInt(document.getElementById("kas-jumlah").value, 10);
-  if (!(jumlah > 0)) return toast("Jumlah harus lebih dari 0.", "error");
+  let keterangan = document.getElementById("kas-keterangan").value.trim();
 
-  const pulihkan = tombolLoading(e.submitter || e.target.querySelector("button"), "Menyimpan...");
-  const { error } = await sb.from("uang_kas").insert({
-    tanggal: document.getElementById("kas-tanggal").value,
-    keterangan: document.getElementById("kas-keterangan").value.trim(),
-    tipe: document.querySelector('input[name="kas-tipe"]:checked').value,
-    jumlah,
-  });
+  if (!tanggal) return toast("Tanggal wajib diisi.", "error");
+  if (!(jumlah > 0)) return toast("Jumlah harus lebih dari 0.", "error");
+  if (nomor && !petaWarga[nomor] &&
+      !confirm(`Rumah ${nomor} tidak ada di data warga. Tetap simpan?`)) return;
+
+  // Keterangan kosong + ada No. Rumah → otomatis "Iuran November 2026"
+  if (!keterangan) {
+    if (!nomor) return toast("Isi keterangan (atau No. Rumah untuk iuran).", "error");
+    keterangan = `Iuran ${namaBulan(tanggal.slice(0, 7))}`;
+  }
+
+  // Pemasukan dengan No. Rumah = iuran untuk bulan sesuai tanggal
+  const periode_iuran = nomor && tipe === "masuk" ? `${tanggal.slice(0, 7)}-01` : null;
+
+  const pulihkan = tombolLoading(e.submitter || document.querySelector('button[form="form-kas"]'), "");
+  const { error } = await sb.from("uang_kas").insert({ tanggal, nomor_rumah: nomor, periode_iuran, keterangan, tipe, jumlah });
   pulihkan();
   if (error) return toast("Gagal menyimpan: " + error.message, "error");
-  toast("Transaksi tersimpan.", "sukses");
+
+  toast(`Transaksi ${nomor ? "rumah " + nomor + " " : ""}tersimpan.`, "sukses");
+  // Tanggal, tipe & jumlah dibiarkan agar input iuran banyak rumah lebih cepat
+  document.getElementById("kas-rumah").value = "";
   document.getElementById("kas-keterangan").value = "";
-  document.getElementById("kas-jumlah").value = "";
+  document.getElementById("kas-rumah").focus();
   muatKasAdmin();
 });
 
-document.getElementById("adm-tabel-kas").addEventListener("click", async (e) => {
+// Hapus transaksi dari mana pun (tabel transaksi, tabel pengeluaran, modal iuran)
+document.addEventListener("click", async (e) => {
   const btn = e.target.closest("[data-hapus-kas]");
   if (!btn || !confirm("Hapus transaksi ini?")) return;
   const { error } = await sb.from("uang_kas").delete().eq("id", btn.dataset.hapusKas);
   if (error) return toast("Gagal menghapus: " + error.message, "error");
   toast("Transaksi dihapus.", "sukses");
+  tutupModalIuran();
+  muatKasAdmin();
+});
+
+/* ---------------------------------------------------------------------
+ * Buku kas: tabel iuran (klik sel) & tabel pengeluaran per bulan
+ * ------------------------------------------------------------------- */
+function renderBukuKasAdmin() {
+  const tahun = Number(document.getElementById("adm-kas-tahun").value);
+  document.querySelectorAll(".label-tahun").forEach((el) => (el.textContent = tahun));
+  document.querySelectorAll(".label-iuran").forEach((el) => (el.textContent = formatRupiah(IURAN_BULANAN)));
+  document.getElementById("adm-matriks-iuran").innerHTML =
+    htmlMatriksIuran(kasCache.warga, kasCache.transaksi, tahun, { admin: true });
+  document.getElementById("adm-tabel-pengeluaran").innerHTML =
+    htmlPengeluaran(kasCache.transaksi, tahun, { admin: true });
+}
+
+document.getElementById("adm-kas-tahun").addEventListener("change", renderBukuKasAdmin);
+
+document.getElementById("adm-matriks-iuran").addEventListener("click", (e) => {
+  const sel = e.target.closest("[data-sel]");
+  if (!sel) return;
+  const [rumah, bulan] = sel.dataset.sel.split("|");
+  bukaModalIuran(rumah, Number(bulan));
+});
+
+function bukaModalIuran(rumah, bulan) {
+  const tahun = Number(document.getElementById("adm-kas-tahun").value);
+  selIuran = { rumah, bulan, tahun };
+
+  document.getElementById("iuran-judul").textContent = `${NAMA_BULAN[bulan - 1]} ${tahun}`;
+  document.getElementById("iuran-nama").textContent = `Rumah ${rumah}${petaWarga[rumah] ? " · " + petaWarga[rumah] : ""}`;
+
+  // Pembayaran yang sudah ada di sel ini
+  const ada = kasCache.transaksi.filter((r) => r.nomor_rumah === rumah && bulanIuran(r, tahun) === bulan);
+  document.getElementById("iuran-riwayat").innerHTML = ada.length
+    ? ada.map((r) => `
+        <div class="flex items-center justify-between gap-2 p-3 rounded-xl bg-emerald-50 text-sm">
+          <span><i class="fa-solid fa-circle-check text-emerald-600 mr-1"></i><b>${formatRupiah(r.jumlah)}</b>
+            <span class="text-stone-500">· dibayar ${formatTanggal(r.tanggal, { day: "numeric", month: "short", year: "numeric" })}</span></span>
+          <button type="button" data-hapus-kas="${r.id}" class="text-rose-500 hover:text-rose-700" title="Hapus pembayaran ini"><i class="fa-solid fa-trash"></i></button>
+        </div>`).join("") +
+      `<p class="text-xs text-stone-500">Isi form di bawah hanya bila ada pembayaran tambahan untuk bulan ini.</p>`
+    : `<p class="text-sm text-rose-600"><i class="fa-solid fa-circle-xmark mr-1"></i>Belum ada pembayaran untuk bulan ini.</p>`;
+
+  document.getElementById("iuran-tanggal").value = todayWIB();
+  document.getElementById("iuran-jumlah").value = IURAN_BULANAN;
+  tampil("modal-iuran", true);
+  document.getElementById("iuran-jumlah").focus();
+}
+
+function tutupModalIuran() {
+  tampil("modal-iuran", false);
+  selIuran = null;
+}
+
+document.querySelectorAll("[data-tutup-iuran]").forEach((b) => b.addEventListener("click", tutupModalIuran));
+document.getElementById("modal-iuran").addEventListener("click", (e) => { if (e.target.id === "modal-iuran") tutupModalIuran(); });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && selIuran) tutupModalIuran(); });
+
+document.getElementById("form-iuran").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  if (!selIuran) return;
+  const { rumah, bulan, tahun } = selIuran;
+  const jumlah = parseInt(document.getElementById("iuran-jumlah").value, 10);
+  if (!(jumlah > 0)) return toast("Jumlah harus lebih dari 0.", "error");
+
+  const pulihkan = tombolLoading(e.submitter || e.target.querySelector('button[type="submit"]'), "Menyimpan...");
+  const { error } = await sb.from("uang_kas").insert({
+    tanggal: document.getElementById("iuran-tanggal").value,
+    nomor_rumah: rumah,
+    periode_iuran: periodeIuran(tahun, bulan),
+    keterangan: `Iuran ${NAMA_BULAN[bulan - 1]} ${tahun}`,
+    tipe: "masuk",
+    jumlah,
+  });
+  pulihkan();
+  if (error) return toast("Gagal menyimpan: " + error.message, "error");
+  toast(`Iuran rumah ${rumah} bulan ${NAMA_BULAN[bulan - 1]} tersimpan.`, "sukses");
+  tutupModalIuran();
   muatKasAdmin();
 });
 

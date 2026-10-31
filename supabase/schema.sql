@@ -83,11 +83,20 @@ create table if not exists public.token_piket (
 create table if not exists public.uang_kas (
   id         bigint generated always as identity primary key,
   tanggal    date not null default public.today_wib(),
+  -- Rumah pembayar (mis. iuran). Boleh kosong untuk pengeluaran/donasi umum.
+  nomor_rumah text check (nomor_rumah ~ '^[A-Z0-9-]{1,12}$'),
+  -- Bulan iuran yang dibayar (selalu tanggal 1); bisa beda dengan tanggal bayar
+  periode_iuran date check (periode_iuran is null or extract(day from periode_iuran) = 1),
   keterangan text not null,
   tipe       text not null check (tipe in ('masuk', 'keluar')),
   jumlah     bigint not null check (jumlah > 0),
   created_at timestamptz not null default now()
 );
+-- Untuk database yang dibuat sebelum kolom-kolom ini ada (lihat supabase/migrations/003_buku_kas.sql):
+alter table public.uang_kas
+  add column if not exists nomor_rumah text check (nomor_rumah ~ '^[A-Z0-9-]{1,12}$');
+alter table public.uang_kas
+  add column if not exists periode_iuran date check (periode_iuran is null or extract(day from periode_iuran) = 1);
 
 -- 1g. Log bukti foto gerbang. Karena warga (anon) tidak boleh membaca
 --     storage, tabel inilah yang dipakai untuk mendeteksi "sudah upload hari ini".
@@ -164,6 +173,17 @@ as $$
     select 1 from public.warga
     where nomor_rumah = upper(trim(p_nomor)) and aktif
   );
+$$;
+
+-- Nama & nomor rumah untuk kolom "Nama" di tabel kas publik (tabel warga tetap tertutup)
+create or replace function public.daftar_warga_publik()
+returns table (nomor_rumah text, nama text, aktif boolean)
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select w.nomor_rumah, w.nama, w.aktif from public.warga w order by w.id;
 $$;
 
 -- Dipakai policy storage: nama file harus PERSIS "NomorRumah_YYYY-MM-DD.jpg"

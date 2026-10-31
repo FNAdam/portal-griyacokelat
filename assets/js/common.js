@@ -137,6 +137,171 @@ function hitungRingkasanKas(rows) {
 }
 
 /* ---------------------------------------------------------------------
+ * BUKU KAS (format mengikuti buku kas kertas cluster):
+ *  1. Iuran warga: NO | Nama | Januari..Desember | Total
+ *  2. Pengeluaran uang kas per bulan
+ * ------------------------------------------------------------------- */
+const NAMA_BULAN = ["Januari", "Februari", "Maret", "April", "Mei", "Juni",
+  "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
+
+const _angka = new Intl.NumberFormat("id-ID");
+function formatAngka(n) { return _angka.format(Number(n) || 0); }
+
+/**
+ * Bulan iuran (1–12) dari sebuah transaksi pada tahun tertentu; null bila
+ * bukan iuran. Iuran = pemasukan yang punya nomor_rumah. Bulannya diambil
+ * dari periode_iuran (bulan yang dibayar), atau tanggal bila periode kosong.
+ */
+function bulanIuran(r, tahun) {
+  if (r.tipe !== "masuk" || !r.nomor_rumah) return null;
+  const p = String(r.periode_iuran || r.tanggal).slice(0, 7); // "YYYY-MM"
+  return p.slice(0, 4) === String(tahun) ? Number(p.slice(5, 7)) : null;
+}
+
+/** Isi <select> tahun dari data transaksi (+ tahun berjalan), pertahankan pilihan */
+function isiPilihanTahun(selectId, transaksi) {
+  const sel = document.getElementById(selectId);
+  const sekarang = Number(todayWIB().slice(0, 4));
+  const daftar = new Set([sekarang]);
+  transaksi.forEach((r) => daftar.add(Number(String(r.periode_iuran || r.tanggal).slice(0, 4))));
+  const dipilih = Number(sel.value) || sekarang;
+  sel.innerHTML = [...daftar].sort((a, b) => b - a)
+    .map((t) => `<option value="${t}" ${t === dipilih ? "selected" : ""}>${t}</option>`).join("");
+}
+
+/**
+ * HTML tabel iuran warga per bulan.
+ * warga: [{nomor_rumah, nama, aktif}] (urutan = kolom NO)
+ * opsi.admin: sel bisa diklik (atribut data-sel="RUMAH|BULAN") & bulan lewat
+ *             yang belum bayar diberi warna merah muda.
+ */
+function htmlMatriksIuran(warga, transaksi, tahun, opsi = {}) {
+  // peta[rumah][bulan] = total dibayar
+  const peta = {};
+  for (const r of transaksi) {
+    const b = bulanIuran(r, tahun);
+    if (!b) continue;
+    const baris = (peta[r.nomor_rumah] ||= {});
+    baris[b] = (baris[b] || 0) + Number(r.jumlah);
+  }
+
+  // Baris = warga aktif + warga nonaktif/tak terdaftar yang punya pembayaran di tahun ini
+  const daftar = warga.filter((w) => w.aktif || peta[w.nomor_rumah]);
+  const dikenal = new Set(warga.map((w) => w.nomor_rumah));
+  Object.keys(peta).filter((k) => !dikenal.has(k)).sort()
+    .forEach((k) => daftar.push({ nomor_rumah: k, nama: "(tidak terdaftar)" }));
+
+  const [thIni, blnIni] = todayWIB().split("-").map(Number);
+  const totalBulan = Array(13).fill(0);
+  let totalSemua = 0;
+
+  const kepala = `
+    <thead class="bg-brand-800 text-white text-xs">
+      <tr>
+        <th class="sticky left-0 z-10 bg-brand-800 w-10 min-w-[2.5rem] px-2 py-2 font-medium">No</th>
+        <th class="sticky left-10 z-10 bg-brand-800 min-w-[10rem] px-3 py-2 font-medium text-left">Nama</th>
+        ${NAMA_BULAN.map((b, i) => `<th class="px-2 py-2 font-medium min-w-[4.5rem] ${tahun === thIni && i + 1 === blnIni ? "bg-brand-600" : ""}">${b}</th>`).join("")}
+        <th class="px-3 py-2 font-medium text-right min-w-[5.5rem]">Total</th>
+      </tr>
+    </thead>`;
+
+  const isi = daftar.map((w, idx) => {
+    let totalRumah = 0;
+    const sel = NAMA_BULAN.map((_, i) => {
+      const b = i + 1;
+      const v = peta[w.nomor_rumah]?.[b] || 0;
+      totalRumah += v;
+      totalBulan[b] += v;
+      const lewat = tahun < thIni || (tahun === thIni && b < blnIni);
+      const warna = v ? "bg-emerald-50 text-emerald-800 font-medium" : (opsi.admin && lewat ? "bg-rose-50" : "");
+      const klik = opsi.admin
+        ? `data-sel="${escapeHtml(w.nomor_rumah)}|${b}" title="Klik untuk input/ubah" `
+        : "";
+      const gayaKlik = opsi.admin ? "cursor-pointer hover:ring-2 hover:ring-inset hover:ring-brand-400" : "";
+      const teks = v ? formatAngka(v) : (opsi.admin ? `<span class="text-stone-300">+</span>` : "");
+      return `<td ${klik}class="px-2 py-2 text-center whitespace-nowrap border-l border-stone-100 ${warna} ${gayaKlik}">${teks}</td>`;
+    }).join("");
+    totalSemua += totalRumah;
+    return `
+      <tr class="border-t border-stone-100">
+        <td class="sticky left-0 bg-white px-2 py-2 text-center text-stone-500">${idx + 1}</td>
+        <td class="sticky left-10 bg-white px-3 py-2 whitespace-nowrap">
+          <span class="font-medium">${escapeHtml(w.nama)}</span>
+          <span class="ml-1 text-xs font-semibold text-brand-600">${escapeHtml(w.nomor_rumah)}</span>
+        </td>
+        ${sel}
+        <td class="px-3 py-2 text-right font-semibold whitespace-nowrap border-l border-stone-200">${formatAngka(totalRumah)}</td>
+      </tr>`;
+  }).join("");
+
+  const kaki = `
+    <tfoot class="bg-stone-100 font-semibold text-xs">
+      <tr class="border-t-2 border-stone-300">
+        <td class="sticky left-0 bg-stone-100"></td>
+        <td class="sticky left-10 bg-stone-100 px-3 py-2">Total per bulan</td>
+        ${NAMA_BULAN.map((_, i) => `<td class="px-2 py-2 text-center whitespace-nowrap">${totalBulan[i + 1] ? formatAngka(totalBulan[i + 1]) : "-"}</td>`).join("")}
+        <td class="px-3 py-2 text-right whitespace-nowrap text-emerald-700">${formatRupiah(totalSemua)}</td>
+      </tr>
+    </tfoot>`;
+
+  const kosong = `<tr><td colspan="15" class="px-4 py-6 text-center text-stone-400">Belum ada data warga.</td></tr>`;
+  return `<table class="w-full text-sm">${kepala}<tbody>${daftar.length ? isi : kosong}</tbody>${daftar.length ? kaki : ""}</table>`;
+}
+
+/**
+ * HTML tabel pengeluaran uang kas per bulan (Januari–Desember).
+ * opsi.admin: tampilkan tombol hapus (data-hapus-kas) per item.
+ */
+function htmlPengeluaran(transaksi, tahun, opsi = {}) {
+  const perBulan = NAMA_BULAN.map(() => []);
+  transaksi
+    .filter((r) => r.tipe === "keluar" && String(r.tanggal).startsWith(`${tahun}-`))
+    .sort((a, b) => (a.tanggal < b.tanggal ? -1 : 1))
+    .forEach((r) => perBulan[Number(r.tanggal.slice(5, 7)) - 1].push(r));
+
+  let total = 0;
+  const isi = NAMA_BULAN.map((nama, i) => {
+    const item = perBulan[i];
+    const sub = item.reduce((s, r) => s + Number(r.jumlah), 0);
+    total += sub;
+    const ket = item.length
+      ? item.map((r) => `
+          <div class="flex items-start justify-between gap-3 py-0.5">
+            <span>${escapeHtml(r.keterangan)} <span class="text-xs text-stone-400">(${formatTanggal(r.tanggal, { day: "numeric", month: "short" })})</span></span>
+            <span class="whitespace-nowrap text-stone-600">${formatRupiah(r.jumlah)}${opsi.admin
+              ? ` <button data-hapus-kas="${r.id}" class="ml-1 text-rose-400 hover:text-rose-700" title="Hapus"><i class="fa-solid fa-trash text-xs"></i></button>` : ""}</span>
+          </div>`).join("")
+      : `<span class="text-stone-300">—</span>`;
+    return `
+      <tr class="border-t border-stone-100 align-top">
+        <td class="px-3 py-2 text-center text-stone-500">${i + 1}</td>
+        <td class="px-3 py-2 font-medium whitespace-nowrap">${nama}</td>
+        <td class="px-3 py-2">${ket}</td>
+        <td class="px-3 py-2 text-right font-semibold whitespace-nowrap text-rose-700">${sub ? formatRupiah(sub) : ""}</td>
+      </tr>`;
+  }).join("");
+
+  return `
+    <table class="w-full text-sm min-w-[560px]">
+      <thead class="bg-stone-50 text-stone-500 text-left text-xs">
+        <tr>
+          <th class="px-3 py-2 font-medium w-12 text-center">No</th>
+          <th class="px-3 py-2 font-medium w-28">Bulan</th>
+          <th class="px-3 py-2 font-medium">Keterangan</th>
+          <th class="px-3 py-2 font-medium text-right w-36">Jumlah</th>
+        </tr>
+      </thead>
+      <tbody>${isi}</tbody>
+      <tfoot class="bg-stone-100 font-semibold">
+        <tr class="border-t-2 border-stone-300">
+          <td colspan="3" class="px-3 py-2 text-right">Total pengeluaran ${tahun}</td>
+          <td class="px-3 py-2 text-right whitespace-nowrap text-rose-700">${formatRupiah(total)}</td>
+        </tr>
+      </tfoot>
+    </table>`;
+}
+
+/* ---------------------------------------------------------------------
  * UI HELPER
  * ------------------------------------------------------------------- */
 
